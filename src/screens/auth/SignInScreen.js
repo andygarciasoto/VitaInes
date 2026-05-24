@@ -1,0 +1,211 @@
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  TextInput,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  KeyboardAvoidingView,
+  Platform,
+  Alert,
+} from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { COLORS, FONTS, SPACING, RADIUS } from '../../constants/theme';
+import { t } from '../../localization';
+import Button from '../../components/common/Button';
+import LanguageToggle from '../../components/common/LanguageToggle';
+import { signIn } from '../../services/firebase/auth';
+import { useApp } from '../../store/AppContext';
+
+const SignInScreen = ({ navigation }) => {
+  const insets = useSafeAreaInsets();
+  const { state } = useApp();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState({});
+
+  const validate = () => {
+    const errs = {};
+    if (!email.trim() || !/\S+@\S+\.\S+/.test(email)) {
+      errs.email = t('auth.error_invalid_email');
+    }
+    if (!password || password.length < 6) {
+      errs.password = t('auth.error_weak_password');
+    }
+    setErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
+
+  const handleSignIn = async () => {
+    if (!validate()) return;
+    setLoading(true);
+    try {
+      await signIn(email.trim(), password);
+    } catch (error) {
+      Alert.alert('Error', t('auth.error_generic'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <LinearGradient
+      colors={[COLORS.primaryLight, COLORS.blueLight, COLORS.white]}
+      style={styles.gradient}
+    >
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.flex}
+      >
+        <ScrollView
+          contentContainerStyle={[styles.scroll, { paddingTop: insets.top + SPACING.lg }]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.langRow}>
+            <LanguageToggle />
+          </View>
+
+          <View style={styles.logoContainer}>
+            <View style={styles.logoCircle}>
+              <Text style={styles.logoHeart}>♥</Text>
+            </View>
+            <Text style={styles.appName}>{t('app.name')}</Text>
+            <Text style={styles.tagline}>{t('app.tagline')}</Text>
+          </View>
+
+          <View style={styles.form}>
+            <Text style={styles.formTitle}>{t('auth.sign_in')}</Text>
+
+            <View style={styles.field}>
+              <Text style={styles.fieldLabel}>{t('auth.email')}</Text>
+              <TextInput
+                style={[styles.input, errors.email && styles.inputError]}
+                value={email}
+                onChangeText={setEmail}
+                placeholder="you@email.com"
+                placeholderTextColor={COLORS.textLight}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              {errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
+            </View>
+
+            <View style={styles.field}>
+              <Text style={styles.fieldLabel}>{t('auth.password')}</Text>
+              <TextInput
+                style={[styles.input, errors.password && styles.inputError]}
+                value={password}
+                onChangeText={setPassword}
+                placeholder="••••••"
+                placeholderTextColor={COLORS.textLight}
+                secureTextEntry
+              />
+              {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
+            </View>
+
+            <TouchableOpacity onPress={() => navigation.navigate('ForgotPassword')} style={styles.forgot}>
+              <Text style={styles.forgotText}>{t('auth.forgot_password')}</Text>
+            </TouchableOpacity>
+
+            <Button
+              title={t('auth.sign_in')}
+              onPress={handleSignIn}
+              loading={loading}
+              size="lg"
+              style={styles.btn}
+            />
+
+            <View style={styles.switchRow}>
+              <Text style={styles.switchText}>{t('auth.no_account')} </Text>
+              <TouchableOpacity onPress={() => navigation.navigate('SignUp')}>
+                <Text style={styles.switchLink}>{t('auth.create_account')}</Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.terms}>{t('auth.terms')}</Text>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </LinearGradient>
+  );
+};
+
+const styles = StyleSheet.create({
+  gradient: { flex: 1 },
+  flex: { flex: 1 },
+  scroll: { paddingHorizontal: SPACING.lg, paddingBottom: SPACING.xxl },
+  langRow: { alignItems: 'flex-end', marginBottom: SPACING.lg },
+  logoContainer: { alignItems: 'center', marginBottom: SPACING.xxl },
+  logoCircle: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: COLORS.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: SPACING.md,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  logoHeart: { fontSize: 48, color: COLORS.white },
+  appName: {
+    fontSize: FONTS.xxl,
+    fontWeight: FONTS.bold,
+    color: COLORS.textPrimary,
+    marginBottom: SPACING.xs,
+  },
+  tagline: { fontSize: FONTS.md, color: COLORS.textSecondary },
+
+  form: {
+    backgroundColor: COLORS.white,
+    borderRadius: RADIUS.xl,
+    padding: SPACING.xl,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    elevation: 4,
+  },
+  formTitle: {
+    fontSize: FONTS.xl,
+    fontWeight: FONTS.bold,
+    color: COLORS.textPrimary,
+    marginBottom: SPACING.lg,
+  },
+  field: { marginBottom: SPACING.md },
+  fieldLabel: {
+    fontSize: FONTS.md,
+    fontWeight: FONTS.semiBold,
+    color: COLORS.textPrimary,
+    marginBottom: SPACING.xs,
+  },
+  input: {
+    borderWidth: 2,
+    borderColor: COLORS.border,
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
+    fontSize: FONTS.md,
+    color: COLORS.textPrimary,
+    backgroundColor: COLORS.background,
+    minHeight: 56,
+  },
+  inputError: { borderColor: COLORS.high },
+  errorText: { fontSize: FONTS.sm, color: COLORS.high, marginTop: SPACING.xs },
+  forgot: { alignSelf: 'flex-end', marginBottom: SPACING.lg },
+  forgotText: { fontSize: FONTS.sm, color: COLORS.primary, fontWeight: FONTS.medium },
+  btn: { marginBottom: SPACING.lg },
+  switchRow: { flexDirection: 'row', justifyContent: 'center', marginBottom: SPACING.md },
+  switchText: { fontSize: FONTS.sm, color: COLORS.textSecondary },
+  switchLink: { fontSize: FONTS.sm, color: COLORS.primary, fontWeight: FONTS.semiBold },
+  terms: { fontSize: FONTS.xs, color: COLORS.textLight, textAlign: 'center', lineHeight: 20 },
+});
+
+export default SignInScreen;

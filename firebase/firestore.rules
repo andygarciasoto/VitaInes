@@ -1,0 +1,89 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ─── Helper functions ────────────────────────────────────────────
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isValidReading() {
+      let data = request.resource.data;
+      return data.systolic is int
+        && data.systolic >= 60
+        && data.systolic <= 250
+        && data.diastolic is int
+        && data.diastolic >= 40
+        && data.diastolic <= 150
+        && (data.pulse == null || (data.pulse is int && data.pulse >= 30 && data.pulse <= 200));
+    }
+
+    function isValidMedication() {
+      let data = request.resource.data;
+      return data.name is string
+        && data.name.size() > 0
+        && data.name.size() <= 100
+        && data.dosage is string
+        && data.dosage.size() > 0
+        && data.frequency is int
+        && data.frequency >= 0
+        && data.frequency <= 4;
+    }
+
+    // ─── Users collection ─────────────────────────────────────────────
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId)
+        && request.resource.data.uid == userId;
+      allow update: if isOwner(userId)
+        // Prevent changing uid
+        && request.resource.data.uid == userId;
+      allow delete: if false; // Use Cloud Function for account deletion
+    }
+
+    // ─── Readings collection ───────────────────────────────────────────
+    match /readings/{readingId} {
+      allow read: if isAuthenticated()
+        && resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated()
+        && request.resource.data.userId == request.auth.uid
+        && isValidReading();
+      allow update: if isAuthenticated()
+        && resource.data.userId == request.auth.uid
+        // Don't allow changing userId
+        && request.resource.data.userId == resource.data.userId;
+      allow delete: if isAuthenticated()
+        && resource.data.userId == request.auth.uid;
+    }
+
+    // ─── Medications collection ────────────────────────────────────────
+    match /medications/{medId} {
+      allow read: if isAuthenticated()
+        && resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated()
+        && request.resource.data.userId == request.auth.uid
+        && isValidMedication();
+      allow update: if isAuthenticated()
+        && resource.data.userId == request.auth.uid
+        && request.resource.data.userId == resource.data.userId;
+      allow delete: if isAuthenticated()
+        && resource.data.userId == request.auth.uid;
+    }
+
+    // ─── AI Recommendations (read-only for users, written by Cloud Functions) ─
+    match /ai_recommendations/{recId} {
+      allow read: if isAuthenticated()
+        && resource.data.userId == request.auth.uid;
+      allow write: if false; // Only Cloud Functions can write
+    }
+
+    // ─── Default deny ─────────────────────────────────────────────────
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
