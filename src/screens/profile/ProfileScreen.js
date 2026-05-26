@@ -14,6 +14,22 @@ import { updateUserProfile } from '../../services/firebase/userProfile';
 import { signOut } from '../../services/firebase/auth';
 import { cancelAllNotifications, requestNotificationPermissions } from '../../services/notifications';
 
+// Defined outside the screen so it never remounts on re-render
+const Field = ({ label, value, onChange, placeholder, keyboardType }) => (
+  <View style={styles.field}>
+    <Text style={styles.fieldLabel}>{label}</Text>
+    <TextInput
+      style={styles.input}
+      value={value}
+      onChangeText={onChange}
+      placeholder={placeholder}
+      placeholderTextColor={COLORS.textLight}
+      keyboardType={keyboardType}
+      autoCorrect={false}
+    />
+  </View>
+);
+
 const ProfileScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const { state, dispatch, setLanguage } = useApp();
@@ -86,19 +102,6 @@ const ProfileScreen = ({ navigation }) => {
     );
   };
 
-  const Field = ({ label, value, onChange, placeholder, keyboardType }) => (
-    <View style={styles.field}>
-      <Text style={styles.fieldLabel}>{label}</Text>
-      <TextInput
-        style={styles.input}
-        value={value}
-        onChangeText={onChange}
-        placeholder={placeholder}
-        placeholderTextColor={COLORS.textLight}
-        keyboardType={keyboardType}
-      />
-    </View>
-  );
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>

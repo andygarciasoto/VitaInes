@@ -11,6 +11,25 @@ import Button from '../../components/common/Button';
 import LanguageToggle from '../../components/common/LanguageToggle';
 import { signUp } from '../../services/firebase/auth';
 
+// Defined outside the screen so it never remounts on re-render
+const Field = ({ label, value, onChange, placeholder, secureTextEntry, keyboardType, error }) => (
+  <View style={styles.field}>
+    <Text style={styles.fieldLabel}>{label}</Text>
+    <TextInput
+      style={[styles.input, error && styles.inputError]}
+      value={value}
+      onChangeText={onChange}
+      placeholder={placeholder}
+      placeholderTextColor={COLORS.textLight}
+      secureTextEntry={secureTextEntry}
+      keyboardType={keyboardType}
+      autoCapitalize={keyboardType === 'email-address' ? 'none' : 'words'}
+      autoCorrect={false}
+    />
+    {error && <Text style={styles.errorText}>{error}</Text>}
+  </View>
+);
+
 const SignUpScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const [name, setName] = useState('');
@@ -41,24 +60,6 @@ const SignUpScreen = ({ navigation }) => {
       setLoading(false);
     }
   };
-
-  const Field = ({ label, value, onChange, placeholder, secureTextEntry, keyboardType, error }) => (
-    <View style={styles.field}>
-      <Text style={styles.fieldLabel}>{label}</Text>
-      <TextInput
-        style={[styles.input, error && styles.inputError]}
-        value={value}
-        onChangeText={onChange}
-        placeholder={placeholder}
-        placeholderTextColor={COLORS.textLight}
-        secureTextEntry={secureTextEntry}
-        keyboardType={keyboardType}
-        autoCapitalize={keyboardType === 'email-address' ? 'none' : 'words'}
-        autoCorrect={false}
-      />
-      {error && <Text style={styles.errorText}>{error}</Text>}
-    </View>
-  );
 
   return (
     <LinearGradient colors={[COLORS.primaryLight, COLORS.blueLight, COLORS.white]} style={{ flex: 1 }}>
