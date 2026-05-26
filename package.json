@@ -3,10 +3,10 @@
   "version": "1.0.0",
   "main": "node_modules/expo/AppEntry.js",
   "scripts": {
-    "start": "npx expo start",
-    "android": "npx expo start --android",
-    "ios": "npx expo start --ios",
-    "web": "npx expo start --web",
+    "start": "npx expo@51 start",
+    "android": "npx expo@51 start --android",
+    "ios": "npx expo@51 start --ios",
+    "web": "npx expo@51 start --web",
     "test": "jest --watchAll",
     "lint": "eslint src/"
   },
