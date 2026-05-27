@@ -1,57 +1,139 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, TextInput, StyleSheet } from 'react-native';
+import React, { useRef } from 'react';
+import {
+  View, Text, TextInput, TouchableOpacity, StyleSheet,
+} from 'react-native';
 import { COLORS, FONTS, RADIUS, SPACING, SHADOWS } from '../../constants/theme';
 
-const NumberInput = ({ value, onChange, label, hint, min = 0, max = 999, unit, error }) => {
-  const numValue = parseInt(value, 10) || 0;
+/**
+ * NumberInput — allows direct keyboard typing AND ± buttons.
+ *
+ * Key design decisions:
+ * - Range validation happens ONLY on blur or save, never while typing.
+ *   This lets a user type "1" → "12" → "120" without being blocked mid-entry.
+ * - Only digits are accepted; letters, symbols, and decimals are stripped.
+ * - ± buttons clamp to [min, max] immediately for fine-tuning.
+ * - selectTextOnFocus so the user can start typing to replace the value.
+ */
+const NumberInput = ({
+  value,
+  onChange,
+  onBlur,
+  label,
+  hint,
+  min = 0,
+  max = 999,
+  unit,
+  error,
+  placeholder = '—',
+  autoFocus = false,
+  inputRef: externalRef,
+  onSubmitEditing,
+  returnKeyType = 'done',
+}) => {
+  const internalRef = useRef(null);
+  const ref = externalRef || internalRef;
+  const numValue = parseInt(value, 10);
 
-  const increment = () => {
-    if (numValue < max) onChange(String(numValue + 1));
+  // Strip everything except digits; no clamping during live typing
+  const handleChangeText = (raw) => {
+    const digits = raw.replace(/[^0-9]/g, '');
+    if (digits === '') {
+      onChange('');
+      return;
+    }
+    // Remove accidental leading zeros ("007" → "7")
+    const cleaned = String(parseInt(digits, 10));
+    // Hard-cap at 3 digits so the field never overflows visually
+    if (cleaned.length <= 3) onChange(cleaned);
   };
 
-  const decrement = () => {
-    if (numValue > min) onChange(String(numValue - 1));
+  // On blur: clamp to valid range if the user left an out-of-bounds number
+  const handleBlur = () => {
+    if (value !== '' && !isNaN(numValue)) {
+      if (numValue < min) onChange(String(min));
+      else if (numValue > max) onChange(String(max));
+    }
+    onBlur?.();
+  };
+
+  const handleDecrement = () => {
+    const base = isNaN(numValue) ? min : numValue;
+    if (base > min) onChange(String(base - 1));
+  };
+
+  const handleIncrement = () => {
+    const base = isNaN(numValue) ? min : numValue;
+    if (base < max) onChange(String(base + 1));
   };
 
   return (
     <View style={styles.container}>
-      {label && <Text style={styles.label}>{label}</Text>}
-      {hint && <Text style={styles.hint}>{hint}</Text>}
-      <View style={[styles.inputRow, error && styles.inputError]}>
-        <TouchableOpacity onPress={decrement} style={styles.btn} activeOpacity={0.7}>
-          <Text style={styles.btnText}>−</Text>
+      {label ? <Text style={styles.label}>{label}</Text> : null}
+      {hint ? <Text style={styles.hint}>{hint}</Text> : null}
+
+      <View style={[styles.card, error && styles.cardError]}>
+        {/* ─ Decrement ─ */}
+        <TouchableOpacity
+          style={styles.adjBtn}
+          onPress={handleDecrement}
+          activeOpacity={0.7}
+          hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
+        >
+          <Text style={styles.adjText}>−</Text>
         </TouchableOpacity>
-        <View style={styles.valueContainer}>
+
+        {/* ─ Typing area ─ */}
+        <TouchableOpacity
+          style={styles.inputArea}
+          activeOpacity={1}
+          onPress={() => ref.current?.focus()}
+        >
           <TextInput
+            ref={ref}
             style={styles.input}
             value={value}
-            onChangeText={(text) => {
-              const num = parseInt(text, 10);
-              if (!isNaN(num) && num >= min && num <= max) {
-                onChange(String(num));
-              } else if (text === '' || text === '0') {
-                onChange('');
-              }
-            }}
+            onChangeText={handleChangeText}
+            onBlur={handleBlur}
             keyboardType="number-pad"
+            returnKeyType={returnKeyType}
             maxLength={3}
-            textAlign="center"
             selectTextOnFocus
+            placeholder={placeholder}
+            placeholderTextColor={COLORS.textLight}
+            autoFocus={autoFocus}
+            onSubmitEditing={onSubmitEditing}
+            // Prevent any non-numeric characters from appearing
+            textContentType="none"
+            autoComplete="off"
+            autoCorrect={false}
           />
-          {unit && <Text style={styles.unit}>{unit}</Text>}
-        </View>
-        <TouchableOpacity onPress={increment} style={styles.btn} activeOpacity={0.7}>
-          <Text style={styles.btnText}>+</Text>
+          {unit ? <Text style={styles.unit}>{unit}</Text> : null}
+        </TouchableOpacity>
+
+        {/* ─ Increment ─ */}
+        <TouchableOpacity
+          style={styles.adjBtn}
+          onPress={handleIncrement}
+          activeOpacity={0.7}
+          hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
+        >
+          <Text style={styles.adjText}>+</Text>
         </TouchableOpacity>
       </View>
-      {error && <Text style={styles.errorText}>{error}</Text>}
+
+      {error ? (
+        <View style={styles.errorRow}>
+          <Text style={styles.errorIcon}>⚠</Text>
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      ) : null}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    marginBottom: SPACING.md,
+    marginBottom: SPACING.sm,
   },
   label: {
     fontSize: FONTS.md,
@@ -64,57 +146,81 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     marginBottom: SPACING.sm,
   },
-  inputRow: {
+
+  // Card wrapping the whole control
+  card: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: COLORS.white,
     borderRadius: RADIUS.lg,
     borderWidth: 2,
     borderColor: COLORS.border,
-    ...SHADOWS.sm,
     overflow: 'hidden',
+    ...SHADOWS.sm,
   },
-  inputError: {
+  cardError: {
     borderColor: COLORS.high,
+    backgroundColor: '#FFF8F8',
   },
-  btn: {
-    width: 60,
-    height: 72,
+
+  // ± buttons
+  adjBtn: {
+    width: 56,
+    height: 80,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: COLORS.primaryLight,
   },
-  btnText: {
-    fontSize: 28,
+  adjText: {
+    fontSize: 30,
     fontWeight: FONTS.bold,
     color: COLORS.primary,
-    lineHeight: 32,
+    lineHeight: 34,
   },
-  valueContainer: {
+
+  // Centre typing area
+  inputArea: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    height: 80,
   },
   input: {
+    width: '100%',
+    height: 80,
     fontSize: FONTS.display,
     fontWeight: FONTS.bold,
     color: COLORS.textPrimary,
     textAlign: 'center',
-    width: '100%',
-    height: 72,
-    paddingHorizontal: SPACING.sm,
+    paddingHorizontal: SPACING.xs,
+    // Transparent background so the card bg shows through
+    backgroundColor: 'transparent',
   },
   unit: {
     position: 'absolute',
-    bottom: 8,
-    right: 8,
-    fontSize: FONTS.sm,
+    bottom: 6,
+    right: 6,
+    fontSize: FONTS.xs,
     color: COLORS.textSecondary,
+    fontWeight: FONTS.medium,
+  },
+
+  // Error
+  errorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: SPACING.xs,
+  },
+  errorIcon: {
+    fontSize: FONTS.sm,
+    marginRight: 4,
+    color: COLORS.high,
   },
   errorText: {
+    flex: 1,
     fontSize: FONTS.sm,
     color: COLORS.high,
-    marginTop: SPACING.xs,
+    lineHeight: 18,
   },
 });
 

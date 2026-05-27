@@ -1,10 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TextInput,
-  TouchableOpacity, Alert, KeyboardAvoidingView, Platform,
+  Alert, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { COLORS, FONTS, SPACING, RADIUS, getBPStatus, getBPColor, getBPBgColor } from '../../constants/theme';
+import {
+  COLORS, FONTS, SPACING, RADIUS,
+  getBPStatus, getBPColor, getBPBgColor,
+} from '../../constants/theme';
 import { t } from '../../localization';
 import { useApp } from '../../store/AppContext';
 import NumberInput from '../../components/common/NumberInput';
@@ -17,11 +20,33 @@ import { generateRecommendations } from '../../services/ai/recommendations';
 import * as Haptics from 'expo-haptics';
 import { format } from 'date-fns';
 
+// ─── Validation config per field ──────────────────────────────────────────────
+const FIELDS = {
+  systolic:  { min: 70,  max: 250, required: true },
+  diastolic: { min: 40,  max: 150, required: true },
+  pulse:     { min: 30,  max: 220, required: false },
+};
+
 const STATUS_INFO = {
-  normal: { emoji: '✅', descKey: 'reading.normal_desc' },
-  elevated: { emoji: '⚠️', descKey: 'reading.elevated_desc' },
-  high: { emoji: '🔴', descKey: 'reading.high_desc' },
-  crisis: { emoji: '🚨', descKey: 'reading.crisis_desc' },
+  normal:   { emoji: '✅', descKey: 'reading.normal_desc' },
+  elevated: { emoji: '⚠️',  descKey: 'reading.elevated_desc' },
+  high:     { emoji: '🔴', descKey: 'reading.high_desc' },
+  crisis:   { emoji: '🚨', descKey: 'reading.crisis_desc' },
+};
+
+// Validate a single field, returning an error string or null
+const validateField = (name, raw) => {
+  const cfg = FIELDS[name];
+  if (!raw || raw.trim() === '') {
+    if (cfg.required) return t(`reading.enter_${name}`);
+    return null;
+  }
+  const n = parseInt(raw, 10);
+  if (isNaN(n)) return t(`reading.enter_${name}`);
+  if (n < cfg.min || n > cfg.max) {
+    return t(`reading.invalid_${name}`);
+  }
+  return null;
 };
 
 const AddReadingScreen = ({ navigation }) => {
@@ -29,84 +54,78 @@ const AddReadingScreen = ({ navigation }) => {
   const { state, dispatch } = useApp();
   const { user, language, recentReadings } = state;
 
-  const [systolic, setSystolic] = useState('');
+  const [systolic, setSystolic]   = useState('');
   const [diastolic, setDiastolic] = useState('');
-  const [pulse, setPulse] = useState('');
-  const [notes, setNotes] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [errors, setErrors] = useState({});
-  const [saved, setSaved] = useState(false);
+  const [pulse, setPulse]         = useState('');
+  const [notes, setNotes]         = useState('');
+  const [errors, setErrors]       = useState({});
+  const [saving, setSaving]       = useState(false);
+  const [saved, setSaved]         = useState(false);
 
-  const sys = parseInt(systolic, 10);
-  const dia = parseInt(diastolic, 10);
-  const hasValidBP = !isNaN(sys) && !isNaN(dia) && sys > 0 && dia > 0;
-  const status = hasValidBP ? getBPStatus(sys, dia) : null;
+  // Refs for focus management
+  const diastolicRef = useRef(null);
+  const pulseRef     = useRef(null);
+
+  // Live BP preview — only shown when both values are non-empty & plausible
+  const sysNum = parseInt(systolic, 10);
+  const diaNum = parseInt(diastolic, 10);
+  const previewReady = (
+    !isNaN(sysNum) && sysNum >= FIELDS.systolic.min && sysNum <= FIELDS.systolic.max &&
+    !isNaN(diaNum) && diaNum >= FIELDS.diastolic.min && diaNum <= FIELDS.diastolic.max
+  );
+  const status     = previewReady ? getBPStatus(sysNum, diaNum) : null;
   const statusInfo = status ? STATUS_INFO[status] : null;
 
-  const validate = () => {
+  // Clear field error as soon as the user starts editing
+  const clearError = useCallback((name) => {
+    setErrors((prev) => {
+      if (!prev[name]) return prev;
+      const next = { ...prev };
+      delete next[name];
+      return next;
+    });
+  }, []);
+
+  // Validate all required fields, set errors, return true if clean
+  const validateAll = () => {
     const errs = {};
-    const sysNum = parseInt(systolic, 10);
-    const diaNum = parseInt(diastolic, 10);
-    const pulseNum = parseInt(pulse, 10);
-
-    if (!systolic) {
-      errs.systolic = t('reading.enter_systolic');
-    } else if (sysNum < 60 || sysNum > 250) {
-      errs.systolic = t('reading.invalid_systolic');
-    }
-
-    if (!diastolic) {
-      errs.diastolic = t('reading.enter_diastolic');
-    } else if (diaNum < 40 || diaNum > 150) {
-      errs.diastolic = t('reading.invalid_diastolic');
-    }
-
-    if (pulse && (pulseNum < 30 || pulseNum > 200)) {
-      errs.pulse = t('reading.invalid_pulse');
-    }
-
+    ['systolic', 'diastolic', 'pulse'].forEach((name) => {
+      const raw = name === 'systolic' ? systolic
+                : name === 'diastolic' ? diastolic
+                : pulse;
+      const err = validateField(name, raw);
+      if (err) errs[name] = err;
+    });
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
 
   const handleSave = async () => {
-    if (!validate()) return;
+    if (saving || saved) return;
+    if (!validateAll()) return;
     if (!user?.uid) return;
 
     setSaving(true);
     try {
-      const sysNum = parseInt(systolic, 10);
-      const diaNum = parseInt(diastolic, 10);
       const pulseNum = pulse ? parseInt(pulse, 10) : null;
+      const reading  = { systolic: sysNum, diastolic: diaNum, pulse: pulseNum, notes: notes.trim(), date: new Date() };
 
-      const reading = {
-        systolic: sysNum,
-        diastolic: diaNum,
-        pulse: pulseNum,
-        notes: notes.trim(),
-        date: new Date(),
-      };
-
-      const id = await addReading(user.uid, reading);
+      const id         = await addReading(user.uid, reading);
       const newReading = { ...reading, id, timestamp: new Date() };
 
       dispatch({ type: 'ADD_READING', payload: newReading });
 
-      // Send alert for high/crisis readings
       const bpStatus = getBPStatus(sysNum, diaNum);
       if (bpStatus === 'high' || bpStatus === 'crisis') {
         await sendElevatedBPAlert(sysNum, diaNum, language);
       }
 
-      // Update recommendations
-      const updatedReadings = [newReading, ...recentReadings];
-      const recs = await generateRecommendations(updatedReadings, language);
+      const recs = await generateRecommendations([newReading, ...recentReadings], language);
       dispatch({ type: 'SET_RECOMMENDATIONS', payload: recs });
 
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setSaved(true);
-
-      setTimeout(() => navigation.goBack(), 1500);
+      setTimeout(() => navigation.goBack(), 1400);
     } catch {
       Alert.alert('Error', t('common.error'));
     } finally {
@@ -126,93 +145,105 @@ const AddReadingScreen = ({ navigation }) => {
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.flex}
+        keyboardVerticalOffset={8}
       >
         <ScrollView
           contentContainerStyle={styles.scroll}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Date/time row */}
-          <View style={styles.dateRow}>
-            <Text style={styles.dateLabel}>🕐 {format(new Date(), 'EEEE, MMMM d · h:mm a')}</Text>
-          </View>
+          {/* Timestamp */}
+          <Text style={styles.timestamp}>
+            🕐 {format(new Date(), 'EEEE, MMMM d · h:mm a')}
+          </Text>
 
-          {/* Status preview */}
-          {hasValidBP && statusInfo && (
-            <View style={[styles.statusPreview, { backgroundColor: getBPBgColor(sys, dia) }]}>
+          {/* Live status preview */}
+          {previewReady && statusInfo && (
+            <View style={[styles.statusBanner, { backgroundColor: getBPBgColor(sysNum, diaNum) }]}>
               <Text style={styles.statusEmoji}>{statusInfo.emoji}</Text>
-              <View style={styles.statusText}>
-                <BPStatusBadge systolic={sys} diastolic={dia} />
-                <Text style={[styles.statusDesc, { color: getBPColor(sys, dia) }]}>
+              <View style={styles.statusBody}>
+                <BPStatusBadge systolic={sysNum} diastolic={diaNum} />
+                <Text style={[styles.statusDesc, { color: getBPColor(sysNum, diaNum) }]}>
                   {t(statusInfo.descKey)}
                 </Text>
               </View>
             </View>
           )}
 
-          {/* BP Inputs */}
-          <View style={styles.bpInputsRow}>
-            <View style={styles.bpInputCol}>
+          {/* ── Blood Pressure ── */}
+          <Text style={styles.sectionHeading}>Blood Pressure</Text>
+          <View style={styles.bpRow}>
+            {/* Systolic */}
+            <View style={styles.bpCol}>
               <NumberInput
                 label={t('reading.systolic')}
                 hint={t('reading.systolic_hint')}
                 value={systolic}
-                onChange={setSystolic}
-                min={60}
-                max={250}
+                onChange={(v) => { clearError('systolic'); setSystolic(v); }}
+                min={FIELDS.systolic.min}
+                max={FIELDS.systolic.max}
                 unit={t('common.mmhg')}
                 error={errors.systolic}
+                placeholder="120"
+                autoFocus
+                returnKeyType="next"
+                onSubmitEditing={() => diastolicRef.current?.focus()}
               />
             </View>
-            <View style={styles.divider}>
-              <Text style={styles.dividerText}>/</Text>
-            </View>
-            <View style={styles.bpInputCol}>
+
+            <Text style={styles.slash}>/</Text>
+
+            {/* Diastolic */}
+            <View style={styles.bpCol}>
               <NumberInput
                 label={t('reading.diastolic')}
                 hint={t('reading.diastolic_hint')}
                 value={diastolic}
-                onChange={setDiastolic}
-                min={40}
-                max={150}
+                onChange={(v) => { clearError('diastolic'); setDiastolic(v); }}
+                min={FIELDS.diastolic.min}
+                max={FIELDS.diastolic.max}
                 unit={t('common.mmhg')}
                 error={errors.diastolic}
+                placeholder="80"
+                inputRef={diastolicRef}
+                returnKeyType="next"
+                onSubmitEditing={() => pulseRef.current?.focus()}
               />
             </View>
           </View>
 
-          {/* Pulse */}
-          <View style={styles.pulseRow}>
-            <NumberInput
-              label={`♥ ${t('reading.pulse')}`}
-              hint={t('reading.pulse_hint')}
-              value={pulse}
-              onChange={setPulse}
-              min={30}
-              max={200}
-              unit={t('common.bpm')}
-              error={errors.pulse}
-            />
-          </View>
+          {/* ── Pulse ── */}
+          <Text style={styles.sectionHeading}>♥ {t('reading.pulse')}</Text>
+          <NumberInput
+            hint={t('reading.pulse_hint')}
+            value={pulse}
+            onChange={(v) => { clearError('pulse'); setPulse(v); }}
+            min={FIELDS.pulse.min}
+            max={FIELDS.pulse.max}
+            unit={t('common.bpm')}
+            error={errors.pulse}
+            placeholder="70"
+            inputRef={pulseRef}
+            returnKeyType="done"
+            onSubmitEditing={() => pulseRef.current?.blur()}
+          />
 
-          {/* Notes */}
-          <View style={styles.notesSection}>
-            <Text style={styles.notesLabel}>{t('reading.notes')}</Text>
-            <TextInput
-              style={styles.notesInput}
-              value={notes}
-              onChangeText={setNotes}
-              placeholder={t('reading.notes_placeholder')}
-              placeholderTextColor={COLORS.textLight}
-              multiline
-              numberOfLines={3}
-              textAlignVertical="top"
-            />
-          </View>
+          {/* ── Notes ── */}
+          <Text style={styles.sectionHeading}>{t('reading.notes')}</Text>
+          <TextInput
+            style={styles.notesInput}
+            value={notes}
+            onChangeText={setNotes}
+            placeholder={t('reading.notes_placeholder')}
+            placeholderTextColor={COLORS.textLight}
+            multiline
+            numberOfLines={3}
+            textAlignVertical="top"
+          />
 
-          {/* Save button */}
+          {/* ── Save / Success ── */}
           {saved ? (
-            <View style={styles.savedContainer}>
+            <View style={styles.savedBanner}>
               <Text style={styles.savedText}>✅ {t('reading.saved')}</Text>
             </View>
           ) : (
@@ -221,7 +252,6 @@ const AddReadingScreen = ({ navigation }) => {
               onPress={handleSave}
               loading={saving}
               size="lg"
-              style={styles.saveBtn}
             />
           )}
 
@@ -234,47 +264,75 @@ const AddReadingScreen = ({ navigation }) => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  flex: { flex: 1 },
-  scroll: { padding: SPACING.lg },
+  flex:      { flex: 1 },
+  scroll:    { padding: SPACING.lg },
 
-  dateRow: { marginBottom: SPACING.md },
-  dateLabel: { fontSize: FONTS.md, color: COLORS.textSecondary, textAlign: 'center' },
+  timestamp: {
+    fontSize: FONTS.sm,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    marginBottom: SPACING.md,
+  },
 
-  statusPreview: {
+  // Live status banner
+  statusBanner: {
     flexDirection: 'row', alignItems: 'center',
     padding: SPACING.md, borderRadius: RADIUS.lg,
     marginBottom: SPACING.lg,
   },
   statusEmoji: { fontSize: 32, marginRight: SPACING.md },
-  statusText: { flex: 1, gap: SPACING.xs },
-  statusDesc: { fontSize: FONTS.sm, lineHeight: 20, marginTop: SPACING.xs },
+  statusBody:  { flex: 1, gap: SPACING.xs },
+  statusDesc:  { fontSize: FONTS.sm, lineHeight: 20, marginTop: 4 },
 
-  bpInputsRow: {
+  // Section headings
+  sectionHeading: {
+    fontSize: FONTS.md,
+    fontWeight: FONTS.semiBold,
+    color: COLORS.textSecondary,
+    marginBottom: SPACING.sm,
+    marginTop: SPACING.md,
+  },
+
+  // Systolic / diastolic side by side
+  bpRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: SPACING.sm,
   },
-  bpInputCol: { flex: 1 },
-  divider: { width: 40, alignItems: 'center', paddingBottom: SPACING.md },
-  dividerText: { fontSize: FONTS.xxl, color: COLORS.textLight, fontWeight: FONTS.bold },
+  bpCol:  { flex: 1 },
+  slash: {
+    fontSize: FONTS.xxl + 8,
+    fontWeight: FONTS.bold,
+    color: COLORS.textLight,
+    marginHorizontal: SPACING.sm,
+    marginTop: 44, // Align with the number input visually
+  },
 
-  pulseRow: { marginBottom: SPACING.sm },
-
-  notesSection: { marginBottom: SPACING.xl },
-  notesLabel: { fontSize: FONTS.md, fontWeight: FONTS.semiBold, color: COLORS.textPrimary, marginBottom: SPACING.sm },
+  // Notes
   notesInput: {
-    borderWidth: 2, borderColor: COLORS.border,
-    borderRadius: RADIUS.lg, padding: SPACING.md,
-    fontSize: FONTS.md, color: COLORS.textPrimary,
-    backgroundColor: COLORS.white, minHeight: 96,
+    borderWidth: 2,
+    borderColor: COLORS.border,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.md,
+    fontSize: FONTS.md,
+    color: COLORS.textPrimary,
+    backgroundColor: COLORS.white,
+    minHeight: 96,
+    marginBottom: SPACING.xl,
   },
 
-  saveBtn: {},
-  savedContainer: {
-    backgroundColor: COLORS.normalBg, borderRadius: RADIUS.lg,
-    padding: SPACING.lg, alignItems: 'center',
+  // Success
+  savedBanner: {
+    backgroundColor: COLORS.normalBg,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.lg,
+    alignItems: 'center',
   },
-  savedText: { fontSize: FONTS.lg, fontWeight: FONTS.semiBold, color: COLORS.normal },
+  savedText: {
+    fontSize: FONTS.lg,
+    fontWeight: FONTS.semiBold,
+    color: COLORS.normal,
+  },
 });
 
 export default AddReadingScreen;
