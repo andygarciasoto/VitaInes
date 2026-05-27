@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator,
 } from 'react-native';
@@ -22,51 +22,58 @@ const CATEGORY_COLORS = {
   disclaimer: { bg: '#F5F5F5', border: '#B0B0B0', icon: '#B0B0B0' },
 };
 
+// Module scope — never remounts on parent re-render
+const RecommendationCard = React.memo(({ rec }) => {
+  const colors = CATEGORY_COLORS[rec.category] || CATEGORY_COLORS.general;
+  const isPriority = rec.priority === 'critical' || rec.priority === 'high';
+  return (
+    <Card
+      style={[styles.recCard, { borderLeftColor: colors.border, backgroundColor: colors.bg }, isPriority && styles.recCardPriority]}
+      variant="flat"
+    >
+      <View style={styles.recHeader}>
+        <View style={[styles.iconCircle, { backgroundColor: colors.border + '22' }]}>
+          <Text style={styles.recIcon}>{getCategoryIcon(rec.category)}</Text>
+        </View>
+        <View style={styles.recMeta}>
+          <Text style={[styles.recCategory, { color: colors.icon }]}>
+            {t(`ai.categories.${rec.category}`) || rec.category}
+          </Text>
+          {isPriority && (
+            <View style={styles.urgentBadge}>
+              <Text style={styles.urgentText}>!</Text>
+            </View>
+          )}
+        </View>
+      </View>
+      <Text style={styles.recText}>{rec.text}</Text>
+    </Card>
+  );
+});
+
 const InsightsScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const { state, dispatch } = useApp();
   const { recommendations, recentReadings, language, recommendationsLoading } = state;
   const [refreshing, setRefreshing] = useState(false);
 
-  const handleRefresh = async () => {
+  const regenerate = useCallback(async (lang) => {
     setRefreshing(true);
-    dispatch({ type: 'SET_RECOMMENDATIONS_LOADING', payload: true });
     try {
-      const recs = await generateRecommendations(recentReadings, language);
+      const recs = await generateRecommendations(recentReadings, lang);
       dispatch({ type: 'SET_RECOMMENDATIONS', payload: recs });
     } finally {
       setRefreshing(false);
     }
-  };
+  }, [recentReadings, dispatch]);
 
-  const RecommendationCard = ({ rec, index }) => {
-    const colors = CATEGORY_COLORS[rec.category] || CATEGORY_COLORS.general;
-    const isPriority = rec.priority === 'critical' || rec.priority === 'high';
+  // Re-generate recommendations whenever the language changes
+  useEffect(() => {
+    if (!recentReadings?.length) return;
+    regenerate(language);
+  }, [language]); // intentionally only language — avoids loop on every reading change
 
-    return (
-      <Card
-        style={[styles.recCard, { borderLeftColor: colors.border, backgroundColor: colors.bg }, isPriority && styles.recCardPriority]}
-        variant="flat"
-      >
-        <View style={styles.recHeader}>
-          <View style={[styles.iconCircle, { backgroundColor: colors.border + '22' }]}>
-            <Text style={styles.recIcon}>{getCategoryIcon(rec.category)}</Text>
-          </View>
-          <View style={styles.recMeta}>
-            <Text style={[styles.recCategory, { color: colors.icon }]}>
-              {t(`ai.categories.${rec.category}`) || rec.category}
-            </Text>
-            {isPriority && (
-              <View style={styles.urgentBadge}>
-                <Text style={styles.urgentText}>!</Text>
-              </View>
-            )}
-          </View>
-        </View>
-        <Text style={styles.recText}>{rec.text}</Text>
-      </Card>
-    );
-  };
+  const handleRefresh = () => regenerate(language);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -93,12 +100,12 @@ const InsightsScreen = ({ navigation }) => {
         ) : (
           <>
             {recommendations.map((rec, idx) => (
-              <RecommendationCard key={idx} rec={rec} index={idx} />
+              <RecommendationCard key={idx} rec={rec} />
             ))}
           </>
         )}
 
-        <TouchableOpacity style={styles.refreshBtn} onPress={handleRefresh} activeOpacity={0.8}>
+        <TouchableOpacity style={styles.refreshBtn} onPress={() => handleRefresh()} activeOpacity={0.8}>
           <Text style={styles.refreshIcon}>🔄</Text>
           <Text style={styles.refreshText}>{t('ai.refresh')}</Text>
         </TouchableOpacity>

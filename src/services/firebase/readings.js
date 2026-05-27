@@ -34,36 +34,49 @@ export const addReading = async (userId, reading) => {
 };
 
 export const getReadings = async (userId, startDate, endDate) => {
+  // Simple equality-only query — no composite index required.
+  // Range filtering and sorting are done in JS after fetching.
   const q = query(
     collection(db, READINGS_COLLECTION),
     where('userId', '==', userId),
-    where('clientTimestamp', '>=', Timestamp.fromDate(startDate)),
-    where('clientTimestamp', '<=', Timestamp.fromDate(endDate)),
-    orderBy('clientTimestamp', 'desc')
+    limit(1000)
   );
 
   const snapshot = await getDocs(q);
-  return snapshot.docs.map((d) => ({
+  let results = snapshot.docs.map((d) => ({
     id: d.id,
     ...d.data(),
     timestamp: d.data().clientTimestamp?.toDate() || new Date(),
   }));
+
+  // Sort newest-first
+  results.sort((a, b) => b.timestamp - a.timestamp);
+
+  // Filter by date range if provided
+  if (startDate && endDate) {
+    results = results.filter(r => r.timestamp >= startDate && r.timestamp <= endDate);
+  }
+
+  return results;
 };
 
 export const getRecentReadings = async (userId, count = 10) => {
+  // Fetch a larger batch and sort in JS to avoid composite index requirement
   const q = query(
     collection(db, READINGS_COLLECTION),
     where('userId', '==', userId),
-    orderBy('clientTimestamp', 'desc'),
-    limit(count)
+    limit(Math.max(count * 5, 50))
   );
 
   const snapshot = await getDocs(q);
-  return snapshot.docs.map((d) => ({
+  const results = snapshot.docs.map((d) => ({
     id: d.id,
     ...d.data(),
     timestamp: d.data().clientTimestamp?.toDate() || new Date(),
   }));
+
+  results.sort((a, b) => b.timestamp - a.timestamp);
+  return results.slice(0, count);
 };
 
 export const getLatestReading = async (userId) => {

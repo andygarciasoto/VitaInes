@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   ActivityIndicator, Dimensions, Modal, Platform, Alert,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { LineChart } from 'react-native-chart-kit';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -155,11 +156,14 @@ const HistoryScreen = ({ navigation }) => {
     }
   }, [user?.uid]);
 
-  useEffect(() => {
-    const filter = FILTERS.find(f => f.key === activeFilter) || FILTERS[1];
-    const { start, end } = getDateRange(filter, customStart, customEnd);
-    loadStats(start, end);
-  }, [activeFilter, customStart, customEnd, loadStats]);
+  // Reload every time the screen comes into focus (catches new readings saved elsewhere)
+  useFocusEffect(
+    useCallback(() => {
+      const filter = FILTERS.find(f => f.key === activeFilter) || FILTERS[1];
+      const { start, end } = getDateRange(filter, customStart, customEnd);
+      loadStats(start, end);
+    }, [activeFilter, customStart, customEnd, loadStats])
+  );
 
   // ── Chart data ─────────────────────────────────────────────────────────────
   const bpChartData = useMemo(() => {

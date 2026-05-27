@@ -62,13 +62,21 @@ const AddReadingScreen = ({ navigation }) => {
   const [saving, setSaving]       = useState(false);
   const [saved, setSaved]         = useState(false);
 
-  const diastolicRef = useRef(null);
-  const pulseRef     = useRef(null);
+  const diastolicRef   = useRef(null);
+  const pulseRef       = useRef(null);
+  // Ref-based lock prevents any duplicate saves, even on rapid double-tap
+  const saveInProgress = useRef(false);
 
-  // Navigate back automatically after successful save
+  // Navigate away after successful save — try pop(), fall back to navigate('Main')
   useEffect(() => {
     if (!saved) return;
-    const timer = setTimeout(() => { try { navigation.goBack(); } catch {} }, 1000);
+    const timer = setTimeout(() => {
+      if (navigation.canGoBack()) {
+        navigation.goBack();
+      } else {
+        navigation.navigate('Main');
+      }
+    }, 900);
     return () => clearTimeout(timer);
   }, [saved, navigation]);
 
@@ -107,10 +115,12 @@ const AddReadingScreen = ({ navigation }) => {
   };
 
   const handleSave = async () => {
-    if (saving || saved) return;
+    // Ref check is synchronous — immune to React's async state batching
+    if (saveInProgress.current) return;
     if (!validateAll()) return;
     if (!user?.uid) return;
 
+    saveInProgress.current = true;
     setSaving(true);
     try {
       const pulseNum = pulse ? parseInt(pulse, 10) : null;
@@ -132,7 +142,8 @@ const AddReadingScreen = ({ navigation }) => {
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setSaved(true);
       // navigation handled by useEffect above
-    } catch {
+    } catch (err) {
+      saveInProgress.current = false; // allow the user to retry on error
       Alert.alert('Error', t('common.error'));
     } finally {
       setSaving(false);
