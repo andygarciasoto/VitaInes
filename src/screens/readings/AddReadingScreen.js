@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TextInput,
   Alert, KeyboardAvoidingView, Platform,
@@ -62,9 +62,15 @@ const AddReadingScreen = ({ navigation }) => {
   const [saving, setSaving]       = useState(false);
   const [saved, setSaved]         = useState(false);
 
-  // Refs for focus management
   const diastolicRef = useRef(null);
   const pulseRef     = useRef(null);
+
+  // Navigate back automatically after successful save
+  useEffect(() => {
+    if (!saved) return;
+    const timer = setTimeout(() => { try { navigation.goBack(); } catch {} }, 1000);
+    return () => clearTimeout(timer);
+  }, [saved, navigation]);
 
   // Live BP preview — only shown when both values are non-empty & plausible
   const sysNum = parseInt(systolic, 10);
@@ -125,13 +131,31 @@ const AddReadingScreen = ({ navigation }) => {
 
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setSaved(true);
-      setTimeout(() => navigation.goBack(), 1400);
+      // navigation handled by useEffect above
     } catch {
       Alert.alert('Error', t('common.error'));
     } finally {
       setSaving(false);
     }
   };
+
+  // Full-screen success view shown after save
+  if (saved) {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <Header title={t('reading.title')} showBack={false} showLanguage={false} />
+        <View style={styles.successScreen}>
+          <Text style={styles.successEmoji}>✅</Text>
+          <Text style={styles.successTitle}>{t('reading.saved')}</Text>
+          <Text style={[styles.successReading, { color: getBPColor(sysNum, diaNum) }]}>
+            {sysNum}/{diaNum} {t('common.mmhg')}
+          </Text>
+          {status && <BPStatusBadge systolic={sysNum} diastolic={diaNum} />}
+          <Text style={styles.successSub}>Returning to history…</Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -241,19 +265,14 @@ const AddReadingScreen = ({ navigation }) => {
             textAlignVertical="top"
           />
 
-          {/* ── Save / Success ── */}
-          {saved ? (
-            <View style={styles.savedBanner}>
-              <Text style={styles.savedText}>✅ {t('reading.saved')}</Text>
-            </View>
-          ) : (
-            <Button
-              title={t('reading.save')}
-              onPress={handleSave}
-              loading={saving}
-              size="lg"
-            />
-          )}
+          {/* ── Save button ── */}
+          <Button
+            title={saving ? t('reading.saving') : t('reading.save')}
+            onPress={handleSave}
+            loading={saving}
+            disabled={saving}
+            size="lg"
+          />
 
           <View style={{ height: SPACING.xxl }} />
         </ScrollView>
@@ -321,18 +340,15 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.xl,
   },
 
-  // Success
-  savedBanner: {
-    backgroundColor: COLORS.normalBg,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.lg,
-    alignItems: 'center',
+  // Full-screen success state
+  successScreen: {
+    flex: 1, alignItems: 'center', justifyContent: 'center',
+    padding: SPACING.xl, gap: SPACING.md,
   },
-  savedText: {
-    fontSize: FONTS.lg,
-    fontWeight: FONTS.semiBold,
-    color: COLORS.normal,
-  },
+  successEmoji:   { fontSize: 80 },
+  successTitle:   { fontSize: FONTS.xl, fontWeight: FONTS.bold, color: COLORS.normal },
+  successReading: { fontSize: FONTS.xxl, fontWeight: FONTS.bold },
+  successSub:     { fontSize: FONTS.sm, color: COLORS.textLight, marginTop: SPACING.sm },
 });
 
 export default AddReadingScreen;
