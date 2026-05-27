@@ -1,208 +1,361 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View, Text, TextInput, StyleSheet, ScrollView,
-  TouchableOpacity, FlatList,
+  TouchableOpacity, FlatList, Modal, SafeAreaView,
 } from 'react-native';
-import { COLORS, FONTS, SPACING, RADIUS } from '../../constants/theme';
+import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../../constants/theme';
 import { t } from '../../localization';
-import { BP_MEDICATIONS, FREQUENCY_OPTIONS } from '../../constants/medications';
+import { BP_MEDICATIONS } from '../../constants/medications';
 import Button from '../../components/common/Button';
 
-const MedicationForm = ({ onSave, onCancel, initialValues, inline = false }) => {
+const FREQ_OPTIONS = [
+  { value: 1, label: '1×', sub: 'Daily' },
+  { value: 2, label: '2×', sub: 'Daily' },
+  { value: 3, label: '3×', sub: 'Daily' },
+  { value: 4, label: '4×', sub: 'Daily' },
+  { value: 0, label: 'PRN', sub: 'As needed' },
+];
+
+// ─── Medication Picker Modal ───────────────────────────────────────────────────
+const MedPickerModal = ({ visible, onSelect, onClose }) => {
   const [search, setSearch] = useState('');
-  const [selectedMed, setSelectedMed] = useState(initialValues?.name || '');
-  const [selectedCategory, setSelectedCategory] = useState(initialValues?.category || '');
-  const [dosage, setDosage] = useState(initialValues?.dosage || '');
-  const [frequency, setFrequency] = useState(initialValues?.frequency || 1);
-  const [doctorNotes, setDoctorNotes] = useState(initialValues?.doctorNotes || '');
-  const [showDropdown, setShowDropdown] = useState(false);
 
-  const filteredMeds = BP_MEDICATIONS.filter((m) =>
-    m.name.toLowerCase().includes(search.toLowerCase()) ||
-    m.category.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = search.trim().length > 0
+    ? BP_MEDICATIONS.filter((m) =>
+        m.name.toLowerCase().includes(search.toLowerCase()) ||
+        m.category.toLowerCase().includes(search.toLowerCase())
+      )
+    : BP_MEDICATIONS;
 
-  const selectMed = (med) => {
-    setSelectedMed(med.name);
-    setSelectedCategory(med.category);
-    setSearch(med.name);
-    setShowDropdown(false);
-    if (med.commonDoses.length > 0) setDosage(med.commonDoses[0]);
+  const handleSelect = (med) => {
+    setSearch('');
+    onSelect(med);
   };
 
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
+      <SafeAreaView style={modal.container}>
+
+        {/* Header */}
+        <View style={modal.header}>
+          <Text style={modal.title}>💊 {t('medications.name')}</Text>
+          <TouchableOpacity onPress={onClose} style={modal.closeBtn} activeOpacity={0.7}>
+            <Text style={modal.closeIcon}>✕</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Search */}
+        <View style={modal.searchWrapper}>
+          <Text style={modal.searchIcon}>🔍</Text>
+          <TextInput
+            style={modal.searchInput}
+            value={search}
+            onChangeText={setSearch}
+            placeholder={t('medications.search_placeholder')}
+            placeholderTextColor={COLORS.textLight}
+            autoCorrect={false}
+            autoCapitalize="none"
+            clearButtonMode="while-editing"
+          />
+        </View>
+
+        {/* List */}
+        <FlatList
+          data={filtered}
+          keyExtractor={(item) => item.id}
+          keyboardShouldPersistTaps="always"
+          showsVerticalScrollIndicator={false}
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              style={modal.item}
+              onPress={() => handleSelect(item)}
+              activeOpacity={0.7}
+            >
+              <View style={modal.itemBody}>
+                <Text style={modal.itemName}>{item.name}</Text>
+                <View style={modal.categoryTag}>
+                  <Text style={modal.categoryText}>{item.category}</Text>
+                </View>
+              </View>
+              <Text style={modal.chevron}>›</Text>
+            </TouchableOpacity>
+          )}
+          ItemSeparatorComponent={() => <View style={modal.sep} />}
+          ListEmptyComponent={
+            <View style={modal.empty}>
+              <Text style={modal.emptyText}>No medications found</Text>
+            </View>
+          }
+        />
+      </SafeAreaView>
+    </Modal>
+  );
+};
+
+// ─── Main Form ─────────────────────────────────────────────────────────────────
+const MedicationForm = ({ onSave, onCancel, initialValues }) => {
+  const [showPicker, setShowPicker] = useState(false);
+  const [selectedMed, setSelectedMed] = useState(
+    initialValues?.name
+      ? { name: initialValues.name, category: initialValues.category || '', commonDoses: [] }
+      : null
+  );
+  const [dosage, setDosage] = useState(initialValues?.dosage || '');
+  const [frequency, setFrequency] = useState(initialValues?.frequency ?? 1);
+  const [doctorNotes, setDoctorNotes] = useState(initialValues?.doctorNotes || '');
+
+  const handleSelectMed = useCallback((med) => {
+    setSelectedMed(med);
+    if (med.commonDoses?.length > 0) setDosage(med.commonDoses[0]);
+    setShowPicker(false);
+  }, []);
+
   const handleSave = () => {
-    if (!selectedMed.trim() || !dosage.trim()) return;
+    if (!selectedMed || !dosage.trim()) return;
     onSave({
-      name: selectedMed.trim(),
-      category: selectedCategory,
+      name: selectedMed.name,
+      category: selectedMed.category || '',
       dosage: dosage.trim(),
       frequency,
       doctorNotes: doctorNotes.trim(),
     });
   };
 
-  const containerStyle = inline ? styles.inlineContainer : styles.container;
+  const canSave = !!selectedMed && dosage.trim().length > 0;
 
   return (
-    <View style={containerStyle}>
-      {/* Medication search */}
-      <View style={styles.field}>
-        <Text style={styles.label}>{t('medications.name')}</Text>
-        <TextInput
-          style={styles.input}
-          value={search}
-          onChangeText={(text) => {
-            setSearch(text);
-            setSelectedMed(text);
-            setShowDropdown(text.length > 0);
-          }}
-          placeholder={t('medications.search_placeholder')}
-          placeholderTextColor={COLORS.textLight}
-          onFocus={() => { if (search.length > 0) setShowDropdown(true); }}
-        />
-        {showDropdown && filteredMeds.length > 0 && (
-          <View style={styles.dropdown}>
-            <FlatList
-              data={filteredMeds.slice(0, 8)}
-              keyExtractor={(item) => item.id}
-              style={styles.dropdownList}
-              keyboardShouldPersistTaps="handled"
-              renderItem={({ item }) => (
-                <TouchableOpacity style={styles.dropdownItem} onPress={() => selectMed(item)}>
-                  <Text style={styles.dropdownName}>{item.name}</Text>
-                  <Text style={styles.dropdownCategory}>{item.category}</Text>
-                </TouchableOpacity>
-              )}
-            />
-          </View>
-        )}
-      </View>
+    <View>
+      {/* ── Step 1: Medication picker ── */}
+      <Text style={form.label}>{t('medications.name')}</Text>
+      <TouchableOpacity
+        style={[form.pickerBtn, selectedMed && form.pickerBtnActive]}
+        onPress={() => setShowPicker(true)}
+        activeOpacity={0.8}
+      >
+        <Text style={form.pickerEmoji}>💊</Text>
+        <View style={form.pickerMiddle}>
+          {selectedMed ? (
+            <>
+              <Text style={form.pickerName}>{selectedMed.name}</Text>
+              {selectedMed.category ? (
+                <Text style={form.pickerCategory}>{selectedMed.category}</Text>
+              ) : null}
+            </>
+          ) : (
+            <Text style={form.pickerPlaceholder}>{t('medications.search_placeholder')}</Text>
+          )}
+        </View>
+        <Text style={form.pickerChevron}>›</Text>
+      </TouchableOpacity>
 
-      {/* Dosage */}
-      {selectedMed ? (
+      {/* ── Step 2: Dosage (visible after medication selected) ── */}
+      {selectedMed && (
         <>
-          <View style={styles.field}>
-            <Text style={styles.label}>{t('medications.dosage')}</Text>
-            <View style={styles.dosageRow}>
-              {BP_MEDICATIONS.find((m) => m.name === selectedMed)?.commonDoses.map((dose) => (
+          <Text style={form.label}>{t('medications.dosage')}</Text>
+          {selectedMed.commonDoses?.length > 0 && (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={form.chipRow}
+              style={form.chipScroll}
+            >
+              {selectedMed.commonDoses.map((dose) => (
                 <TouchableOpacity
                   key={dose}
-                  style={[styles.dosePill, dosage === dose && styles.dosePillActive]}
+                  style={[form.chip, dosage === dose && form.chipActive]}
                   onPress={() => setDosage(dose)}
+                  activeOpacity={0.8}
                 >
-                  <Text style={[styles.dosePillText, dosage === dose && styles.dosePillTextActive]}>
+                  <Text style={[form.chipText, dosage === dose && form.chipTextActive]}>
                     {dose}
                   </Text>
                 </TouchableOpacity>
               ))}
-            </View>
-            <TextInput
-              style={styles.input}
-              value={dosage}
-              onChangeText={setDosage}
-              placeholder="e.g. 10mg"
-              placeholderTextColor={COLORS.textLight}
-            />
+            </ScrollView>
+          )}
+          <TextInput
+            style={form.input}
+            value={dosage}
+            onChangeText={setDosage}
+            placeholder="e.g. 10mg"
+            placeholderTextColor={COLORS.textLight}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+
+          {/* ── Step 3: Frequency ── */}
+          <Text style={form.label}>{t('medications.frequency')}</Text>
+          <View style={form.freqRow}>
+            {FREQ_OPTIONS.map((opt) => (
+              <TouchableOpacity
+                key={opt.value}
+                style={[form.freqBtn, frequency === opt.value && form.freqBtnActive]}
+                onPress={() => setFrequency(opt.value)}
+                activeOpacity={0.8}
+              >
+                <Text style={[form.freqLabel, frequency === opt.value && form.freqLabelActive]}>
+                  {opt.label}
+                </Text>
+                <Text style={[form.freqSub, frequency === opt.value && form.freqSubActive]}>
+                  {opt.sub}
+                </Text>
+              </TouchableOpacity>
+            ))}
           </View>
 
-          {/* Frequency */}
-          <View style={styles.field}>
-            <Text style={styles.label}>{t('medications.frequency')}</Text>
-            <View style={styles.freqRow}>
-              {FREQUENCY_OPTIONS.map((opt) => (
-                <TouchableOpacity
-                  key={opt.id}
-                  style={[styles.freqPill, frequency === opt.value && styles.freqPillActive]}
-                  onPress={() => setFrequency(opt.value)}
-                >
-                  <Text style={[styles.freqText, frequency === opt.value && styles.freqTextActive]}>
-                    {t(opt.labelKey)}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-
-          {/* Doctor notes */}
-          <View style={styles.field}>
-            <Text style={styles.label}>{t('medications.doctor_notes')}</Text>
-            <TextInput
-              style={[styles.input, styles.notesInput]}
-              value={doctorNotes}
-              onChangeText={setDoctorNotes}
-              placeholder={t('medications.doctor_notes_placeholder')}
-              placeholderTextColor={COLORS.textLight}
-              multiline
-              numberOfLines={3}
-              textAlignVertical="top"
-            />
-          </View>
-
-          <View style={styles.btnRow}>
-            <Button title={t('common.cancel')} onPress={onCancel} variant="ghost" style={styles.cancelBtn} />
-            <Button
-              title={t('medications.save')}
-              onPress={handleSave}
-              disabled={!selectedMed || !dosage}
-              style={styles.saveBtn}
-            />
-          </View>
+          {/* ── Step 4: Doctor Notes ── */}
+          <Text style={form.label}>{t('medications.doctor_notes')}</Text>
+          <TextInput
+            style={[form.input, form.notesInput]}
+            value={doctorNotes}
+            onChangeText={setDoctorNotes}
+            placeholder={t('medications.doctor_notes_placeholder')}
+            placeholderTextColor={COLORS.textLight}
+            multiline
+            numberOfLines={3}
+            textAlignVertical="top"
+          />
         </>
-      ) : (
-        <View style={styles.btnRow}>
-          <Button title={t('common.cancel')} onPress={onCancel} variant="ghost" />
-        </View>
       )}
+
+      {/* ── Action buttons ── */}
+      <View style={form.btnRow}>
+        <Button title={t('common.cancel')} onPress={onCancel} variant="ghost" style={form.cancelBtn} />
+        <Button
+          title={t('medications.save')}
+          onPress={handleSave}
+          disabled={!canSave}
+          style={form.saveBtn}
+        />
+      </View>
+
+      {/* ── Picker Modal ── */}
+      <MedPickerModal
+        visible={showPicker}
+        onSelect={handleSelectMed}
+        onClose={() => setShowPicker(false)}
+      />
     </View>
   );
 };
 
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: SPACING.lg },
-  inlineContainer: {},
-  field: { marginBottom: SPACING.md },
-  label: { fontSize: FONTS.md, fontWeight: FONTS.semiBold, color: COLORS.textPrimary, marginBottom: SPACING.xs },
+// ─── Form styles ───────────────────────────────────────────────────────────────
+const form = StyleSheet.create({
+  label: {
+    fontSize: FONTS.md,
+    fontWeight: FONTS.semiBold,
+    color: COLORS.textPrimary,
+    marginBottom: SPACING.sm,
+    marginTop: SPACING.lg,
+  },
+
+  // Picker button
+  pickerBtn: {
+    flexDirection: 'row', alignItems: 'center',
+    borderWidth: 2, borderColor: COLORS.border,
+    borderRadius: RADIUS.lg, padding: SPACING.md,
+    backgroundColor: COLORS.background, minHeight: 72,
+  },
+  pickerBtnActive: { borderColor: COLORS.primary, backgroundColor: COLORS.primaryLight },
+  pickerEmoji: { fontSize: 28, marginRight: SPACING.md },
+  pickerMiddle: { flex: 1 },
+  pickerName: { fontSize: FONTS.lg, fontWeight: FONTS.semiBold, color: COLORS.primary },
+  pickerCategory: { fontSize: FONTS.sm, color: COLORS.primaryDark, marginTop: 2 },
+  pickerPlaceholder: { fontSize: FONTS.md, color: COLORS.textLight },
+  pickerChevron: { fontSize: 28, color: COLORS.textLight },
+
+  // Dosage chips
+  chipScroll: { marginBottom: SPACING.sm },
+  chipRow: { flexDirection: 'row', gap: SPACING.sm, paddingRight: SPACING.sm },
+  chip: {
+    paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm,
+    borderRadius: RADIUS.full, borderWidth: 2, borderColor: COLORS.border,
+    backgroundColor: COLORS.white, minHeight: 48, justifyContent: 'center',
+  },
+  chipActive: { borderColor: COLORS.primary, backgroundColor: COLORS.primary },
+  chipText: { fontSize: FONTS.md, color: COLORS.textSecondary, fontWeight: FONTS.medium },
+  chipTextActive: { color: COLORS.white, fontWeight: FONTS.bold },
+
+  // Text input
   input: {
     borderWidth: 2, borderColor: COLORS.border, borderRadius: RADIUS.md,
     padding: SPACING.md, fontSize: FONTS.md, color: COLORS.textPrimary,
-    backgroundColor: COLORS.white, minHeight: 52,
+    backgroundColor: COLORS.white, minHeight: 56,
   },
-  notesInput: { minHeight: 80 },
+  notesInput: { minHeight: 100 },
 
-  dropdown: {
-    position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100,
-    backgroundColor: COLORS.white, borderRadius: RADIUS.md,
-    borderWidth: 1, borderColor: COLORS.border,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1, shadowRadius: 8, elevation: 8,
+  // Frequency
+  freqRow: { flexDirection: 'row', gap: SPACING.sm },
+  freqBtn: {
+    flex: 1, alignItems: 'center', justifyContent: 'center',
+    paddingVertical: SPACING.md, borderRadius: RADIUS.md,
+    borderWidth: 2, borderColor: COLORS.border,
+    backgroundColor: COLORS.background, minHeight: 64,
   },
-  dropdownList: { maxHeight: 200 },
-  dropdownItem: { padding: SPACING.md, borderBottomWidth: 1, borderBottomColor: COLORS.borderLight },
-  dropdownName: { fontSize: FONTS.md, fontWeight: FONTS.medium, color: COLORS.textPrimary },
-  dropdownCategory: { fontSize: FONTS.sm, color: COLORS.textSecondary },
+  freqBtnActive: { borderColor: COLORS.primary, backgroundColor: COLORS.primaryLight },
+  freqLabel: { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: COLORS.textSecondary },
+  freqLabelActive: { color: COLORS.primary },
+  freqSub: { fontSize: 10, color: COLORS.textLight, textAlign: 'center', marginTop: 2 },
+  freqSubActive: { color: COLORS.primaryDark },
 
-  dosageRow: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.xs, marginBottom: SPACING.sm },
-  dosePill: {
-    paddingHorizontal: SPACING.sm, paddingVertical: 6,
-    borderRadius: RADIUS.full, borderWidth: 1.5, borderColor: COLORS.border,
-  },
-  dosePillActive: { borderColor: COLORS.primary, backgroundColor: COLORS.primaryLight },
-  dosePillText: { fontSize: FONTS.sm, color: COLORS.textSecondary },
-  dosePillTextActive: { color: COLORS.primary, fontWeight: FONTS.semiBold },
-
-  freqRow: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.xs },
-  freqPill: {
-    paddingHorizontal: SPACING.sm, paddingVertical: 8,
-    borderRadius: RADIUS.md, borderWidth: 1.5, borderColor: COLORS.border,
-    backgroundColor: COLORS.background,
-  },
-  freqPillActive: { borderColor: COLORS.primary, backgroundColor: COLORS.primaryLight },
-  freqText: { fontSize: FONTS.sm, color: COLORS.textSecondary },
-  freqTextActive: { color: COLORS.primary, fontWeight: FONTS.semiBold },
-
-  btnRow: { flexDirection: 'row', gap: SPACING.md, marginTop: SPACING.sm },
+  // Buttons
+  btnRow: { flexDirection: 'row', gap: SPACING.md, marginTop: SPACING.xl },
   cancelBtn: { flex: 1 },
   saveBtn: { flex: 2 },
+});
+
+// ─── Modal styles ──────────────────────────────────────────────────────────────
+const modal = StyleSheet.create({
+  container: { flex: 1, backgroundColor: COLORS.white },
+
+  header: {
+    flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: SPACING.lg,
+    borderBottomWidth: 1, borderBottomColor: COLORS.border,
+  },
+  title: { fontSize: FONTS.xl, fontWeight: FONTS.bold, color: COLORS.textPrimary },
+  closeBtn: {
+    width: 44, height: 44, borderRadius: 22,
+    backgroundColor: COLORS.background,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  closeIcon: { fontSize: FONTS.md, color: COLORS.textSecondary },
+
+  searchWrapper: {
+    flexDirection: 'row', alignItems: 'center',
+    margin: SPACING.lg,
+    borderWidth: 2, borderColor: COLORS.border,
+    borderRadius: RADIUS.lg, backgroundColor: COLORS.background,
+    paddingHorizontal: SPACING.md,
+    minHeight: 56,
+  },
+  searchIcon: { fontSize: 20, marginRight: SPACING.sm },
+  searchInput: { flex: 1, fontSize: FONTS.md, color: COLORS.textPrimary },
+
+  item: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: SPACING.lg, paddingVertical: SPACING.md,
+    minHeight: 76,
+  },
+  itemBody: { flex: 1 },
+  itemName: {
+    fontSize: FONTS.lg, fontWeight: FONTS.medium,
+    color: COLORS.textPrimary, marginBottom: SPACING.xs,
+  },
+  categoryTag: {
+    alignSelf: 'flex-start',
+    backgroundColor: COLORS.primaryLight,
+    borderRadius: RADIUS.full,
+    paddingHorizontal: SPACING.sm, paddingVertical: 3,
+  },
+  categoryText: { fontSize: FONTS.xs, color: COLORS.primary, fontWeight: FONTS.semiBold },
+  chevron: { fontSize: 28, color: COLORS.textLight },
+
+  sep: { height: 1, backgroundColor: COLORS.borderLight, marginLeft: SPACING.lg },
+
+  empty: { alignItems: 'center', padding: SPACING.xxl },
+  emptyText: { fontSize: FONTS.md, color: COLORS.textSecondary },
 });
 
 export default MedicationForm;

@@ -8,7 +8,6 @@ import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../../constants/theme';
 import { t } from '../../localization';
 import { useApp } from '../../store/AppContext';
 import Card from '../../components/common/Card';
-import Button from '../../components/common/Button';
 import Header from '../../components/common/Header';
 import MedicationForm from './MedicationForm';
 import {
@@ -27,6 +26,56 @@ const FREQ_LABELS = {
   4: 'four_times_daily',
 };
 
+// ─── MedCard outside screen to prevent focus/remount bugs ─────────────────────
+const MedCard = ({ med, onEdit, onToggle, onDelete }) => (
+  <Card style={[styles.medCard, !med.active && styles.medCardPaused]} variant="flat">
+    <View style={styles.medHeader}>
+      <View style={styles.medTitleRow}>
+        <Text style={styles.medName}>{med.name}</Text>
+        <View style={[styles.statusBadge, med.active ? styles.activeBadge : styles.pausedBadge]}>
+          <Text style={[styles.statusText, med.active ? styles.activeText : styles.pausedText]}>
+            {med.active ? t('medications.active_label') : t('medications.paused_label')}
+          </Text>
+        </View>
+      </View>
+      {med.category ? <Text style={styles.medCategory}>{med.category}</Text> : null}
+    </View>
+
+    <View style={styles.medDetails}>
+      <View style={styles.detailChip}>
+        <Text style={styles.detailIcon}>💊</Text>
+        <Text style={styles.detailText}>{med.dosage}</Text>
+      </View>
+      <View style={styles.detailChip}>
+        <Text style={styles.detailIcon}>🔄</Text>
+        <Text style={styles.detailText}>{t(`medications.${FREQ_LABELS[med.frequency] || 'once_daily'}`)}</Text>
+      </View>
+    </View>
+
+    {med.doctorNotes ? (
+      <View style={styles.notesRow}>
+        <Text style={styles.notesIcon}>📋</Text>
+        <Text style={styles.notesText} numberOfLines={2}>{med.doctorNotes}</Text>
+      </View>
+    ) : null}
+
+    <View style={styles.actionsRow}>
+      <TouchableOpacity style={styles.actionBtn} onPress={() => onEdit(med)}>
+        <Text style={styles.actionBtnText}>✏️ {t('medications.edit')}</Text>
+      </TouchableOpacity>
+      <TouchableOpacity style={styles.actionBtn} onPress={() => onToggle(med)}>
+        <Text style={styles.actionBtnText}>
+          {med.active ? `⏸ ${t('medications.pause')}` : `▶️ ${t('medications.resume')}`}
+        </Text>
+      </TouchableOpacity>
+      <TouchableOpacity style={[styles.actionBtn, styles.deleteBtn]} onPress={() => onDelete(med)}>
+        <Text style={[styles.actionBtnText, styles.deleteText]}>🗑 {t('medications.delete')}</Text>
+      </TouchableOpacity>
+    </View>
+  </Card>
+);
+
+// ─── Screen ────────────────────────────────────────────────────────────────────
 const MedicationsScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const { state, dispatch } = useApp();
@@ -34,54 +83,58 @@ const MedicationsScreen = ({ navigation }) => {
 
   const [showForm, setShowForm] = useState(false);
   const [editingMed, setEditingMed] = useState(null);
-  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    loadMedications();
+    if (!user?.uid) return;
+    getMedications(user.uid)
+      .then((meds) => dispatch({ type: 'SET_MEDICATIONS', payload: meds }))
+      .catch(() => {});
   }, [user?.uid]);
 
-  const loadMedications = async () => {
-    if (!user?.uid) return;
-    setLoading(true);
-    try {
-      const meds = await getMedications(user.uid);
-      dispatch({ type: 'SET_MEDICATIONS', payload: meds });
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // Optimistic add — updates UI instantly, syncs to Firebase in background
   const handleAdd = async (medData) => {
-    if (!user?.uid) return;
+    const tempId = `temp_${Date.now()}`;
+    const optimistic = { id: tempId, ...medData, active: true };
+    dispatch({ type: 'ADD_MEDICATION', payload: optimistic });
+    setShowForm(false);
+
     try {
-      const id = await addMedication(user.uid, medData);
-      dispatch({ type: 'ADD_MEDICATION', payload: { id, ...medData, active: true } });
-      setShowForm(false);
+      const realId = await addMedication(user.uid, medData);
+      dispatch({ type: 'DELETE_MEDICATION', payload: tempId });
+      dispatch({ type: 'ADD_MEDICATION', payload: { id: realId, ...medData, active: true } });
     } catch {
+      dispatch({ type: 'DELETE_MEDICATION', payload: tempId });
       Alert.alert('Error', t('common.error'));
     }
   };
 
+  // Optimistic edit
   const handleEdit = async (medData) => {
     if (!editingMed) return;
+    const previous = medications.find((m) => m.id === editingMed.id);
+    dispatch({ type: 'UPDATE_MEDICATION', payload: { id: editingMed.id, ...medData } });
+    setEditingMed(null);
+
     try {
       await updateMedication(editingMed.id, medData);
-      dispatch({ type: 'UPDATE_MEDICATION', payload: { id: editingMed.id, ...medData } });
-      setEditingMed(null);
     } catch {
+      if (previous) dispatch({ type: 'UPDATE_MEDICATION', payload: previous });
       Alert.alert('Error', t('common.error'));
     }
   };
 
+  // Optimistic toggle
   const handleToggle = async (med) => {
+    dispatch({ type: 'UPDATE_MEDICATION', payload: { id: med.id, active: !med.active } });
     try {
       await toggleMedication(med.id, !med.active);
-      dispatch({ type: 'UPDATE_MEDICATION', payload: { id: med.id, active: !med.active } });
     } catch {
+      dispatch({ type: 'UPDATE_MEDICATION', payload: { id: med.id, active: med.active } });
       Alert.alert('Error', t('common.error'));
     }
   };
 
+  // Optimistic delete
   const handleDelete = (med) => {
     Alert.alert(
       t('medications.delete'),
@@ -92,10 +145,11 @@ const MedicationsScreen = ({ navigation }) => {
           text: t('medications.delete_yes'),
           style: 'destructive',
           onPress: async () => {
+            dispatch({ type: 'DELETE_MEDICATION', payload: med.id });
             try {
               await deleteMedication(med.id);
-              dispatch({ type: 'DELETE_MEDICATION', payload: med.id });
             } catch {
+              dispatch({ type: 'ADD_MEDICATION', payload: med });
               Alert.alert('Error', t('common.error'));
             }
           },
@@ -106,54 +160,6 @@ const MedicationsScreen = ({ navigation }) => {
 
   const activeMeds = medications.filter((m) => m.active);
   const pausedMeds = medications.filter((m) => !m.active);
-
-  const MedCard = ({ med }) => (
-    <Card style={[styles.medCard, !med.active && styles.medCardPaused]} variant="flat">
-      <View style={styles.medHeader}>
-        <View style={styles.medTitleRow}>
-          <Text style={styles.medName}>{med.name}</Text>
-          <View style={[styles.statusBadge, med.active ? styles.activeBadge : styles.pausedBadge]}>
-            <Text style={[styles.statusText, med.active ? styles.activeText : styles.pausedText]}>
-              {med.active ? t('medications.active_label') : t('medications.paused_label')}
-            </Text>
-          </View>
-        </View>
-        {med.category && <Text style={styles.medCategory}>{med.category}</Text>}
-      </View>
-
-      <View style={styles.medDetails}>
-        <View style={styles.detailChip}>
-          <Text style={styles.detailIcon}>💊</Text>
-          <Text style={styles.detailText}>{med.dosage}</Text>
-        </View>
-        <View style={styles.detailChip}>
-          <Text style={styles.detailIcon}>🔄</Text>
-          <Text style={styles.detailText}>{t(`medications.${FREQ_LABELS[med.frequency] || 'once_daily'}`)}</Text>
-        </View>
-      </View>
-
-      {med.doctorNotes ? (
-        <View style={styles.notesRow}>
-          <Text style={styles.notesIcon}>📋</Text>
-          <Text style={styles.notesText} numberOfLines={2}>{med.doctorNotes}</Text>
-        </View>
-      ) : null}
-
-      <View style={styles.actionsRow}>
-        <TouchableOpacity style={styles.actionBtn} onPress={() => { setEditingMed(med); }}>
-          <Text style={styles.actionBtnText}>✏️ {t('medications.edit')}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.actionBtn} onPress={() => handleToggle(med)}>
-          <Text style={styles.actionBtnText}>
-            {med.active ? `⏸ ${t('medications.pause')}` : `▶️ ${t('medications.resume')}`}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.actionBtn, styles.deleteBtn]} onPress={() => handleDelete(med)}>
-          <Text style={[styles.actionBtnText, styles.deleteText]}>🗑 {t('medications.delete')}</Text>
-        </TouchableOpacity>
-      </View>
-    </Card>
-  );
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -171,13 +177,29 @@ const MedicationsScreen = ({ navigation }) => {
             {activeMeds.length > 0 && (
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>✅ {t('medications.active_label')}</Text>
-                {activeMeds.map((med) => <MedCard key={med.id} med={med} />)}
+                {activeMeds.map((med) => (
+                  <MedCard
+                    key={med.id}
+                    med={med}
+                    onEdit={setEditingMed}
+                    onToggle={handleToggle}
+                    onDelete={handleDelete}
+                  />
+                ))}
               </View>
             )}
             {pausedMeds.length > 0 && (
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>⏸ {t('medications.paused_label')}</Text>
-                {pausedMeds.map((med) => <MedCard key={med.id} med={med} />)}
+                {pausedMeds.map((med) => (
+                  <MedCard
+                    key={med.id}
+                    med={med}
+                    onEdit={setEditingMed}
+                    onToggle={handleToggle}
+                    onDelete={handleDelete}
+                  />
+                ))}
               </View>
             )}
           </>
@@ -194,7 +216,7 @@ const MedicationsScreen = ({ navigation }) => {
         <Text style={styles.fabText}>+</Text>
       </TouchableOpacity>
 
-      {/* Add/Edit Modal */}
+      {/* Add / Edit Modal */}
       <Modal visible={showForm || !!editingMed} animationType="slide" presentationStyle="pageSheet">
         <View style={[styles.modal, { paddingTop: insets.top }]}>
           <View style={styles.modalHeader}>
@@ -202,7 +224,11 @@ const MedicationsScreen = ({ navigation }) => {
               {editingMed ? t('medications.edit') : t('medications.add')}
             </Text>
           </View>
-          <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.modalScroll}>
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={styles.modalScroll}
+            showsVerticalScrollIndicator={false}
+          >
             <MedicationForm
               onSave={editingMed ? handleEdit : handleAdd}
               onCancel={() => { setShowForm(false); setEditingMed(null); }}
@@ -223,7 +249,7 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: FONTS.md, fontWeight: FONTS.semiBold, color: COLORS.textSecondary, marginBottom: SPACING.sm },
 
   medCard: { marginBottom: SPACING.md },
-  medCardPaused: { opacity: 0.7 },
+  medCardPaused: { opacity: 0.65 },
   medHeader: { marginBottom: SPACING.sm },
   medTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
   medName: { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: COLORS.textPrimary, flex: 1 },
@@ -246,7 +272,7 @@ const styles = StyleSheet.create({
   notesText: { flex: 1, fontSize: FONTS.sm, color: COLORS.textSecondary, lineHeight: 20 },
 
   actionsRow: { flexDirection: 'row', gap: SPACING.xs, borderTopWidth: 1, borderTopColor: COLORS.borderLight, paddingTop: SPACING.sm },
-  actionBtn: { flex: 1, padding: SPACING.sm, borderRadius: RADIUS.sm, alignItems: 'center' },
+  actionBtn: { flex: 1, padding: SPACING.sm, borderRadius: RADIUS.sm, alignItems: 'center', minHeight: 44, justifyContent: 'center' },
   actionBtnText: { fontSize: FONTS.sm, color: COLORS.primary, fontWeight: FONTS.medium },
   deleteBtn: {},
   deleteText: { color: COLORS.high },
@@ -259,7 +285,8 @@ const styles = StyleSheet.create({
   fab: {
     position: 'absolute', right: SPACING.lg,
     width: 64, height: 64, borderRadius: 32,
-    backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: COLORS.primary,
+    alignItems: 'center', justifyContent: 'center',
     ...SHADOWS.lg,
   },
   fabText: { fontSize: 32, color: COLORS.white, lineHeight: 36 },
@@ -267,7 +294,7 @@ const styles = StyleSheet.create({
   modal: { flex: 1, backgroundColor: COLORS.white },
   modalHeader: { padding: SPACING.lg, borderBottomWidth: 1, borderBottomColor: COLORS.border },
   modalTitle: { fontSize: FONTS.xl, fontWeight: FONTS.bold, color: COLORS.textPrimary },
-  modalScroll: { padding: SPACING.lg },
+  modalScroll: { padding: SPACING.lg, paddingBottom: SPACING.xxl },
 });
 
 export default MedicationsScreen;

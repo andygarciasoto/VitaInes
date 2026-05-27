@@ -18,59 +18,46 @@ const LanguageToggle = () => {
   };
 
   return (
-    <TouchableOpacity onPress={toggle} style={styles.container} activeOpacity={0.8}>
+    <TouchableOpacity onPress={toggle} activeOpacity={0.75} style={styles.container}>
       <View style={styles.track}>
+        {/* Active side highlight */}
         <View style={[styles.thumb, !isEnglish && styles.thumbRight]} />
-        <Text style={[styles.label, styles.labelLeft, isEnglish && styles.labelActive]}>EN</Text>
-        <Text style={[styles.label, styles.labelRight, !isEnglish && styles.labelActive]}>ES</Text>
+        <Text style={[styles.sideLabel, isEnglish && styles.sideLabelActive]}>EN</Text>
+        <Text style={[styles.sideLabel, !isEnglish && styles.sideLabelActive]}>ES</Text>
       </View>
     </TouchableOpacity>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  container: { padding: SPACING.xs },
   track: {
-    width: 72,
-    height: 32,
+    width: 80, height: 36,
     backgroundColor: COLORS.primaryLight,
     borderRadius: RADIUS.full,
+    borderWidth: 2, borderColor: COLORS.primary,
     flexDirection: 'row',
     alignItems: 'center',
-    position: 'relative',
-    borderWidth: 1.5,
-    borderColor: COLORS.primary,
     overflow: 'hidden',
+    position: 'relative',
   },
   thumb: {
     position: 'absolute',
-    left: 2,
-    width: 32,
-    height: 28,
+    left: 2, top: 2,
+    width: 36, height: 28,
     backgroundColor: COLORS.primary,
     borderRadius: RADIUS.full,
-    zIndex: 0,
-    transition: 'left 0.2s',
   },
-  thumbRight: {
-    left: 36,
-  },
-  label: {
+  thumbRight: { left: 40 },
+  sideLabel: {
     flex: 1,
     textAlign: 'center',
-    fontSize: FONTS.xs,
+    fontSize: FONTS.sm,
     fontWeight: FONTS.bold,
-    color: COLORS.textSecondary,
+    color: COLORS.primary,
     zIndex: 1,
   },
-  labelActive: {
-    color: COLORS.white,
-  },
-  labelLeft: {},
-  labelRight: {},
+  sideLabelActive: { color: COLORS.white },
 });
 
 export default LanguageToggle;
