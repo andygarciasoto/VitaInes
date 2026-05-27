@@ -110,6 +110,7 @@ export default {
     invalid_systolic: 'Systolic should be between 60 and 250',
     invalid_diastolic: 'Diastolic should be between 40 and 150',
     invalid_pulse: 'Pulse should be between 30 and 200',
+    returning: 'Returning to home…',
   },
 
   // History & Charts
@@ -139,13 +140,17 @@ export default {
     export: 'Export',
     export_pdf: 'Export PDF',
     exporting_pdf: 'Generating…',
-    bp_trend: 'BP Trend',
+    bp_trend: 'Blood Pressure Trend',
+    bp_subtitle: 'Red = Systolic · Blue = Diastolic · Dashes = Thresholds',
     pulse_trend: 'Pulse Trend',
     all_readings: 'All Readings',
     show_more: 'Show all {{count}} readings',
     custom_start: 'From',
     custom_end: 'To',
     avg_pulse: 'Avg Pulse',
+    select_range: 'Select Date Range',
+    try_different: 'Try a different time range',
+    latest_reading: 'Latest Reading',
   },
 
   // Medications
@@ -273,6 +278,7 @@ export default {
     error: 'Something went wrong',
     retry: 'Try again',
     no_internet: 'No internet connection',
+    done: 'Done',
     today: 'Today',
     yesterday: 'Yesterday',
     mmhg: 'mmHg',

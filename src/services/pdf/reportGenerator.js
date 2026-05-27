@@ -1,4 +1,7 @@
 import { format } from 'date-fns';
+import { Platform } from 'react-native';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
 import { getBPStatus } from '../../constants/theme';
 
 const STATUS_COLORS = {
@@ -259,27 +262,23 @@ ${recItems ? `<h2>Health Recommendations</h2>${recItems}` : ''}
 
 // ─── Public export function ───────────────────────────────────────────────────
 export const exportPDFReport = async (opts) => {
-  let Print, Sharing;
-  try { Print   = require('expo-print');   } catch {}
-  try { Sharing = require('expo-sharing'); } catch {}
-
-  if (!Print) throw new Error('expo-print is not installed');
-
   const html = buildHTML(opts);
-  const { uri } = await Print.printToFileAsync({ html, base64: false });
 
-  if (Sharing) {
-    const canShare = await Sharing.isAvailableAsync();
-    if (canShare) {
-      await Sharing.shareAsync(uri, {
-        mimeType: 'application/pdf',
-        dialogTitle: 'Share Blood Pressure Report',
-        UTI: 'com.adobe.pdf',
-      });
-      return;
-    }
+  if (Platform.OS === 'web') {
+    await Print.printAsync({ html });
+    return;
   }
 
-  // Fallback: trigger print dialog
-  await Print.printAsync({ uri });
+  const { uri } = await Print.printToFileAsync({ html });
+
+  const canShare = await Sharing.isAvailableAsync();
+  if (canShare) {
+    await Sharing.shareAsync(uri, {
+      mimeType: 'application/pdf',
+      dialogTitle: 'Share Blood Pressure Report',
+      UTI: 'com.adobe.pdf',
+    });
+  } else {
+    await Print.printAsync({ uri });
+  }
 };

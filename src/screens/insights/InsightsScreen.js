@@ -77,7 +77,7 @@ const InsightsScreen = ({ navigation }) => {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      <Header title={t('ai.title')} showBack onBack={() => navigation.goBack()} showLanguage={false} />
+      <Header title={t('ai.title')} showBack onBack={() => navigation.goBack()} showLanguage />
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         {/* Hero */}

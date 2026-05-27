@@ -110,6 +110,7 @@ export default {
     invalid_systolic: 'La sistólica debe estar entre 60 y 250',
     invalid_diastolic: 'La diastólica debe estar entre 40 y 150',
     invalid_pulse: 'El pulso debe estar entre 30 y 200',
+    returning: 'Regresando al inicio…',
   },
 
   // History & Charts
@@ -139,13 +140,17 @@ export default {
     export: 'Exportar',
     export_pdf: 'Exportar PDF',
     exporting_pdf: 'Generando…',
-    bp_trend: 'Tendencia PA',
+    bp_trend: 'Tendencia Presión Arterial',
+    bp_subtitle: 'Rojo = Sistólica · Azul = Diastólica · Líneas = Límites',
     pulse_trend: 'Tendencia Pulso',
     all_readings: 'Todas las Lecturas',
     show_more: 'Ver todas las {{count}} lecturas',
     custom_start: 'Desde',
     custom_end: 'Hasta',
     avg_pulse: 'Pulso Promedio',
+    select_range: 'Seleccionar Rango de Fechas',
+    try_different: 'Prueba un período diferente',
+    latest_reading: 'Última Lectura',
   },
 
   // Medications
@@ -273,6 +278,7 @@ export default {
     error: 'Algo salió mal',
     retry: 'Intentar de nuevo',
     no_internet: 'Sin conexión a internet',
+    done: 'Listo',
     today: 'Hoy',
     yesterday: 'Ayer',
     mmhg: 'mmHg',

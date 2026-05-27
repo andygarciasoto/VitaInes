@@ -71,11 +71,7 @@ const AddReadingScreen = ({ navigation }) => {
   useEffect(() => {
     if (!saved) return;
     const timer = setTimeout(() => {
-      if (navigation.canGoBack()) {
-        navigation.goBack();
-      } else {
-        navigation.navigate('Main');
-      }
+      navigation.navigate('Main', { screen: 'Home' });
     }, 900);
     return () => clearTimeout(timer);
   }, [saved, navigation]);
@@ -154,7 +150,7 @@ const AddReadingScreen = ({ navigation }) => {
   if (saved) {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
-        <Header title={t('reading.title')} showBack={false} showLanguage={false} />
+        <Header title={t('reading.title')} showBack={false} showLanguage />
         <View style={styles.successScreen}>
           <Text style={styles.successEmoji}>✅</Text>
           <Text style={styles.successTitle}>{t('reading.saved')}</Text>
@@ -162,7 +158,7 @@ const AddReadingScreen = ({ navigation }) => {
             {sysNum}/{diaNum} {t('common.mmhg')}
           </Text>
           {status && <BPStatusBadge systolic={sysNum} diastolic={diaNum} />}
-          <Text style={styles.successSub}>Returning to history…</Text>
+          <Text style={styles.successSub}>{t('reading.returning')}</Text>
         </View>
       </View>
     );
@@ -174,7 +170,7 @@ const AddReadingScreen = ({ navigation }) => {
         title={t('reading.title')}
         showBack
         onBack={() => navigation.goBack()}
-        showLanguage={false}
+        showLanguage
       />
 
       <KeyboardAvoidingView

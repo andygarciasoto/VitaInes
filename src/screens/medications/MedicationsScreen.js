@@ -163,7 +163,7 @@ const MedicationsScreen = ({ navigation }) => {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      <Header title={t('medications.title')} showBack onBack={() => navigation.goBack()} showLanguage={false} />
+      <Header title={t('medications.title')} showBack onBack={() => navigation.goBack()} showLanguage />
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         {medications.length === 0 ? (

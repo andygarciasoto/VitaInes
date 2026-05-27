@@ -27,20 +27,20 @@ const CHART_WIDTH = SCREEN_WIDTH - SPACING.lg * 2 - SPACING.md * 2;
 
 // ─── Filter definitions ───────────────────────────────────────────────────────
 const FILTERS = [
-  { key: 'today', label: 'Today',    days: 0 },
-  { key: '7d',    label: '7 Days',   days: 7 },
-  { key: '30d',   label: '30 Days',  days: 30 },
-  { key: '90d',   label: '90 Days',  days: 90 },
-  { key: '6mo',   label: '6 Mo',     months: 6 },
-  { key: '1yr',   label: '1 Year',   months: 12 },
-  { key: 'custom', label: 'Custom',  custom: true },
+  { key: 'today',  labelKey: 'history.filter_today',    days: 0 },
+  { key: '7d',     labelKey: 'history.filter_7_days',   days: 7 },
+  { key: '30d',    labelKey: 'history.filter_30_days',  days: 30 },
+  { key: '90d',    labelKey: 'history.filter_90_days',  days: 90 },
+  { key: '6mo',    labelKey: 'history.filter_6_months', months: 6 },
+  { key: '1yr',    labelKey: 'history.filter_1_year',   months: 12 },
+  { key: 'custom', labelKey: 'history.filter_custom',   custom: true },
 ];
 
 const STATUS_CONFIG = [
-  { key: 'normal',   emoji: '✅', label: 'Normal',   color: COLORS.normal,   bg: COLORS.normalBg },
-  { key: 'elevated', emoji: '⚠️',  label: 'Elevated', color: COLORS.elevated, bg: COLORS.elevatedBg },
-  { key: 'high',     emoji: '🔴', label: 'High',     color: COLORS.high,     bg: COLORS.highBg },
-  { key: 'crisis',   emoji: '🚨', label: 'Crisis',   color: '#8B0000',       bg: '#FFE8E8' },
+  { key: 'normal',   emoji: '✅', labelKey: 'reading.normal',   color: COLORS.normal,   bg: COLORS.normalBg },
+  { key: 'elevated', emoji: '⚠️',  labelKey: 'reading.elevated', color: COLORS.elevated, bg: COLORS.elevatedBg },
+  { key: 'high',     emoji: '🔴', labelKey: 'reading.high',     color: COLORS.high,     bg: COLORS.highBg },
+  { key: 'crisis',   emoji: '🚨', labelKey: 'reading.crisis',   color: '#8B0000',       bg: '#FFE8E8' },
 ];
 
 // ─── Pure helpers ─────────────────────────────────────────────────────────────
@@ -219,7 +219,7 @@ const HistoryScreen = ({ navigation }) => {
   const currentFilter = FILTERS.find(f => f.key === activeFilter) || FILTERS[1];
   const { start: rangeStart, end: rangeEnd } = getDateRange(currentFilter, customStart, customEnd);
   const rangeLabelStr = activeFilter === 'today'
-    ? 'Today · ' + format(rangeStart, 'MMMM d, yyyy')
+    ? t('common.today') + ' · ' + format(rangeStart, 'MMMM d, yyyy')
     : `${format(rangeStart, 'MMM d')} – ${format(rangeEnd, 'MMM d, yyyy')}`;
 
   // ── PDF export ─────────────────────────────────────────────────────────────
@@ -265,20 +265,7 @@ const HistoryScreen = ({ navigation }) => {
         title={t('history.title')}
         showBack
         onBack={() => navigation.goBack()}
-        showLanguage={false}
-        rightAction={
-          <TouchableOpacity
-            style={[styles.exportBtn, exporting && styles.exportBtnDisabled]}
-            onPress={handleExportPDF}
-            disabled={exporting || !stats?.readings?.length}
-            activeOpacity={0.8}
-          >
-            {exporting
-              ? <ActivityIndicator color={COLORS.white} size="small" />
-              : <Text style={styles.exportBtnText}>📤 PDF</Text>
-            }
-          </TouchableOpacity>
-        }
+        showLanguage
       />
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
@@ -289,7 +276,7 @@ const HistoryScreen = ({ navigation }) => {
             {FILTERS.map(f => (
               <FilterPill
                 key={f.key}
-                label={f.label}
+                label={t(f.labelKey)}
                 active={activeFilter === f.key}
                 onPress={() => setActiveFilter(f.key)}
               />
@@ -300,14 +287,14 @@ const HistoryScreen = ({ navigation }) => {
         {/* ── Custom date range picker ── */}
         {activeFilter === 'custom' && (
           <Card style={styles.customRangeCard} variant="flat" padding="md">
-            <Text style={styles.customRangeTitle}>Select Date Range</Text>
+            <Text style={styles.customRangeTitle}>{t('history.select_range')}</Text>
             <View style={styles.customRangeRow}>
               <TouchableOpacity
                 style={styles.dateButton}
                 onPress={() => setShowStartPicker(true)}
                 activeOpacity={0.8}
               >
-                <Text style={styles.dateButtonLabel}>From</Text>
+                <Text style={styles.dateButtonLabel}>{t('history.custom_start')}</Text>
                 <Text style={styles.dateButtonValue}>
                   {format(customStart, 'MMM d, yyyy')}
                 </Text>
@@ -318,7 +305,7 @@ const HistoryScreen = ({ navigation }) => {
                 onPress={() => setShowEndPicker(true)}
                 activeOpacity={0.8}
               >
-                <Text style={styles.dateButtonLabel}>To</Text>
+                <Text style={styles.dateButtonLabel}>{t('history.custom_end')}</Text>
                 <Text style={styles.dateButtonValue}>
                   {format(customEnd, 'MMM d, yyyy')}
                 </Text>
@@ -331,7 +318,7 @@ const HistoryScreen = ({ navigation }) => {
         <View style={styles.rangeLabelRow}>
           <Text style={styles.rangeLabelText}>📅 {rangeLabelStr}</Text>
           {stats?.count > 0 && (
-            <Text style={styles.readingsCount}>{stats.count} readings</Text>
+            <Text style={styles.readingsCount}>{t('history.readings_count', { count: stats.count })}</Text>
           )}
         </View>
 
@@ -342,17 +329,17 @@ const HistoryScreen = ({ navigation }) => {
           <Card style={styles.emptyCard}>
             <Text style={styles.emptyEmoji}>📊</Text>
             <Text style={styles.emptyTitle}>{t('history.no_data')}</Text>
-            <Text style={styles.emptySubtitle}>Try a different time range</Text>
+            <Text style={styles.emptySubtitle}>{t('history.try_different')}</Text>
           </Card>
         ) : (
           <>
             {/* Stats dashboard */}
             <View style={styles.statsRow}>
-              <StatCard label="Average"  value={`${stats.avgSystolic}/${stats.avgDiastolic}`} unit="mmHg"  color={COLORS.primary} />
-              <StatCard label="Highest"  value={`${stats.maxSystolic}/${stats.maxDiastolic}`} unit="mmHg"  color={COLORS.high} />
-              <StatCard label="Lowest"   value={`${stats.minSystolic}/${stats.minDiastolic}`} unit="mmHg"  color={COLORS.blue} />
+              <StatCard label={t('history.average')}  value={`${stats.avgSystolic}/${stats.avgDiastolic}`} unit="mmHg"  color={COLORS.primary} />
+              <StatCard label={t('history.highest')}  value={`${stats.maxSystolic}/${stats.maxDiastolic}`} unit="mmHg"  color={COLORS.high} />
+              <StatCard label={t('history.lowest')}   value={`${stats.minSystolic}/${stats.minDiastolic}`} unit="mmHg"  color={COLORS.blue} />
               {avgPulse && (
-                <StatCard label="Avg Pulse" value={`${avgPulse}`} unit="bpm" color={COLORS.pink} />
+                <StatCard label={t('history.avg_pulse')} value={`${avgPulse}`} unit="bpm" color={COLORS.pink} />
               )}
             </View>
 
@@ -364,7 +351,7 @@ const HistoryScreen = ({ navigation }) => {
                     <StatusChip
                       key={s.key}
                       emoji={s.emoji}
-                      label={s.label}
+                      label={t(s.labelKey)}
                       count={statusCounts[s.key]}
                       color={s.color}
                       bg={s.bg}
@@ -377,10 +364,8 @@ const HistoryScreen = ({ navigation }) => {
             {/* BP Trend chart */}
             {bpChartData ? (
               <Card style={styles.chartCard} padding="sm">
-                <Text style={styles.chartTitle}>📈 Blood Pressure Trend</Text>
-                <Text style={styles.chartSubtitle}>
-                  Red = Systolic · Blue = Diastolic · Dashed = Thresholds
-                </Text>
+                <Text style={styles.chartTitle}>📈 {t('history.bp_trend')}</Text>
+                <Text style={styles.chartSubtitle}>{t('history.bp_subtitle')}</Text>
                 <LineChart
                   data={bpChartData}
                   width={CHART_WIDTH}
@@ -396,11 +381,11 @@ const HistoryScreen = ({ navigation }) => {
                 <View style={styles.legendRow}>
                   <View style={styles.legendItem}>
                     <View style={[styles.legendDot, { backgroundColor: COLORS.high }]} />
-                    <Text style={styles.legendText}>Systolic</Text>
+                    <Text style={styles.legendText}>{t('history.systolic_label')}</Text>
                   </View>
                   <View style={styles.legendItem}>
                     <View style={[styles.legendDot, { backgroundColor: COLORS.blue }]} />
-                    <Text style={styles.legendText}>Diastolic</Text>
+                    <Text style={styles.legendText}>{t('history.diastolic_label')}</Text>
                   </View>
                   <View style={styles.legendItem}>
                     <View style={[styles.legendDot, { backgroundColor: COLORS.normal, opacity: 0.7 }]} />
@@ -414,7 +399,7 @@ const HistoryScreen = ({ navigation }) => {
               </Card>
             ) : stats.count === 1 ? (
               <Card style={styles.chartCard} padding="md">
-                <Text style={styles.chartTitle}>Latest Reading</Text>
+                <Text style={styles.chartTitle}>{t('history.latest_reading')}</Text>
                 <View style={styles.singleReadingView}>
                   <Text style={[styles.singleBP, { color: getBPColor(stats.readings[0].systolic, stats.readings[0].diastolic) }]}>
                     {stats.readings[0].systolic}/{stats.readings[0].diastolic}
@@ -428,7 +413,7 @@ const HistoryScreen = ({ navigation }) => {
             {/* Pulse trend chart */}
             {pulseChartData && (
               <Card style={styles.chartCard} padding="sm">
-                <Text style={styles.chartTitle}>♥ Pulse Trend</Text>
+                <Text style={styles.chartTitle}>♥ {t('history.pulse_trend')}</Text>
                 <LineChart
                   data={pulseChartData}
                   width={CHART_WIDTH}
@@ -450,7 +435,7 @@ const HistoryScreen = ({ navigation }) => {
             {/* Readings list */}
             <Card style={styles.listCard} padding="md">
               <Text style={styles.listTitle}>
-                All Readings ({stats.count})
+                {t('history.all_readings')} ({stats.count})
               </Text>
               {[...readingsToShow]
                 .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
@@ -464,7 +449,7 @@ const HistoryScreen = ({ navigation }) => {
                   activeOpacity={0.8}
                 >
                   <Text style={styles.showMoreText}>
-                    Show all {stats.readings.length} readings
+                    {t('history.show_more', { count: stats.readings.length })}
                   </Text>
                 </TouchableOpacity>
               )}
@@ -497,11 +482,11 @@ const HistoryScreen = ({ navigation }) => {
               <View style={styles.pickerHandle} />
               <View style={styles.pickerHeader}>
                 <TouchableOpacity onPress={() => setShowStartPicker(false)}>
-                  <Text style={styles.pickerCancel}>Cancel</Text>
+                  <Text style={styles.pickerCancel}>{t('common.cancel')}</Text>
                 </TouchableOpacity>
-                <Text style={styles.pickerTitle}>Start Date</Text>
+                <Text style={styles.pickerTitle}>{t('history.custom_start')}</Text>
                 <TouchableOpacity onPress={() => setShowStartPicker(false)}>
-                  <Text style={styles.pickerDone}>Done</Text>
+                  <Text style={styles.pickerDone}>{t('common.done')}</Text>
                 </TouchableOpacity>
               </View>
               <DateTimePicker
@@ -524,11 +509,11 @@ const HistoryScreen = ({ navigation }) => {
               <View style={styles.pickerHandle} />
               <View style={styles.pickerHeader}>
                 <TouchableOpacity onPress={() => setShowEndPicker(false)}>
-                  <Text style={styles.pickerCancel}>Cancel</Text>
+                  <Text style={styles.pickerCancel}>{t('common.cancel')}</Text>
                 </TouchableOpacity>
-                <Text style={styles.pickerTitle}>End Date</Text>
+                <Text style={styles.pickerTitle}>{t('history.custom_end')}</Text>
                 <TouchableOpacity onPress={() => setShowEndPicker(false)}>
-                  <Text style={styles.pickerDone}>Done</Text>
+                  <Text style={styles.pickerDone}>{t('common.done')}</Text>
                 </TouchableOpacity>
               </View>
               <DateTimePicker
@@ -545,7 +530,7 @@ const HistoryScreen = ({ navigation }) => {
       )}
 
       {/* Android / Web date pickers (native dialog, no Modal needed) */}
-      {showStartPicker && Platform.OS !== 'ios' && (
+      {showStartPicker && Platform.OS === 'android' && (
         <DateTimePicker
           value={customStart}
           mode="date"
@@ -558,7 +543,7 @@ const HistoryScreen = ({ navigation }) => {
           minimumDate={subYears(new Date(), 2)}
         />
       )}
-      {showEndPicker && Platform.OS !== 'ios' && (
+      {showEndPicker && Platform.OS === 'android' && (
         <DateTimePicker
           value={customEnd}
           mode="date"

@@ -7,7 +7,7 @@ import {
   doc,
   query,
   where,
-  orderBy,
+  limit,
   serverTimestamp,
 } from 'firebase/firestore';
 import { db } from './config';
@@ -34,11 +34,17 @@ export const getMedications = async (userId) => {
   const q = query(
     collection(db, MEDS_COLLECTION),
     where('userId', '==', userId),
-    orderBy('createdAt', 'asc')
+    limit(200)
   );
 
   const snapshot = await getDocs(q);
-  return snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+  const results = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+  results.sort((a, b) => {
+    const aTime = a.createdAt?.toMillis?.() || 0;
+    const bTime = b.createdAt?.toMillis?.() || 0;
+    return aTime - bTime;
+  });
+  return results;
 };
 
 export const updateMedication = async (medId, updates) => {
