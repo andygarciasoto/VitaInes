@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TextInput,
   Alert, KeyboardAvoidingView, Platform,
@@ -60,21 +60,11 @@ const AddReadingScreen = ({ navigation }) => {
   const [notes, setNotes]         = useState('');
   const [errors, setErrors]       = useState({});
   const [saving, setSaving]       = useState(false);
-  const [saved, setSaved]         = useState(false);
 
   const diastolicRef   = useRef(null);
   const pulseRef       = useRef(null);
   // Ref-based lock prevents any duplicate saves, even on rapid double-tap
   const saveInProgress = useRef(false);
-
-  // Navigate away after successful save — try pop(), fall back to navigate('Main')
-  useEffect(() => {
-    if (!saved) return;
-    const timer = setTimeout(() => {
-      navigation.navigate('Main', { screen: 'History' });
-    }, 900);
-    return () => clearTimeout(timer);
-  }, [saved, navigation]);
 
   // Live BP preview — only shown when both values are non-empty & plausible
   const sysNum = parseInt(systolic, 10);
@@ -111,7 +101,6 @@ const AddReadingScreen = ({ navigation }) => {
   };
 
   const handleSave = async () => {
-    // Ref check is synchronous — immune to React's async state batching
     if (saveInProgress.current) return;
     if (!validateAll()) return;
     if (!user?.uid) return;
@@ -124,45 +113,26 @@ const AddReadingScreen = ({ navigation }) => {
 
       const id         = await addReading(user.uid, reading);
       const newReading = { ...reading, id, timestamp: new Date() };
-
       dispatch({ type: 'ADD_READING', payload: newReading });
 
+      // Fire-and-forget — none of these should block navigation
       const bpStatus = getBPStatus(sysNum, diaNum);
       if (bpStatus === 'high' || bpStatus === 'crisis') {
-        await sendElevatedBPAlert(sysNum, diaNum, language);
+        sendElevatedBPAlert(sysNum, diaNum, language).catch(() => {});
       }
+      generateRecommendations([newReading, ...recentReadings], language)
+        .then(recs => dispatch({ type: 'SET_RECOMMENDATIONS', payload: recs }))
+        .catch(() => {});
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
 
-      const recs = await generateRecommendations([newReading, ...recentReadings], language);
-      dispatch({ type: 'SET_RECOMMENDATIONS', payload: recs });
-
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setSaved(true);
-      // navigation handled by useEffect above
+      // Navigate immediately after save succeeds
+      navigation.navigate('Main', { screen: 'History' });
     } catch (err) {
-      saveInProgress.current = false; // allow the user to retry on error
-      Alert.alert('Error', t('common.error'));
-    } finally {
+      saveInProgress.current = false;
       setSaving(false);
+      Alert.alert('Error', t('common.error'));
     }
   };
-
-  // Full-screen success view shown after save
-  if (saved) {
-    return (
-      <View style={[styles.container, { paddingTop: insets.top }]}>
-        <Header title={t('reading.title')} showBack={false} showLanguage />
-        <View style={styles.successScreen}>
-          <Text style={styles.successEmoji}>✅</Text>
-          <Text style={styles.successTitle}>{t('reading.saved')}</Text>
-          <Text style={[styles.successReading, { color: getBPColor(sysNum, diaNum) }]}>
-            {sysNum}/{diaNum} {t('common.mmhg')}
-          </Text>
-          {status && <BPStatusBadge systolic={sysNum} diastolic={diaNum} />}
-          <Text style={styles.successSub}>{t('reading.returning')}</Text>
-        </View>
-      </View>
-    );
-  }
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -347,15 +317,6 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.xl,
   },
 
-  // Full-screen success state
-  successScreen: {
-    flex: 1, alignItems: 'center', justifyContent: 'center',
-    padding: SPACING.xl, gap: SPACING.md,
-  },
-  successEmoji:   { fontSize: 80 },
-  successTitle:   { fontSize: FONTS.xl, fontWeight: FONTS.bold, color: COLORS.normal },
-  successReading: { fontSize: FONTS.xxl, fontWeight: FONTS.bold },
-  successSub:     { fontSize: FONTS.sm, color: COLORS.textLight, marginTop: SPACING.sm },
 });
 
 export default AddReadingScreen;
