@@ -530,7 +530,7 @@ const HistoryScreen = ({ navigation }) => {
               {exporting ? (
                 <ActivityIndicator color={COLORS.white} />
               ) : (
-                <Text style={styles.pdfButtonText}>📤 Export PDF Report</Text>
+                <Text style={styles.pdfButtonText}>📤 {t('history.export_pdf')}</Text>
               )}
             </TouchableOpacity>
           </>
