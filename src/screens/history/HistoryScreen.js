@@ -1,13 +1,13 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  ActivityIndicator, Dimensions, Modal, Platform, Alert,
+  ActivityIndicator, Dimensions, Modal, Platform, Alert, TextInput,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { LineChart } from 'react-native-chart-kit';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
-  subDays, subMonths, subYears, startOfDay, endOfDay, format,
+  subDays, subMonths, subYears, startOfDay, endOfDay, format, parseISO,
 } from 'date-fns';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import {
@@ -129,7 +129,7 @@ const ReadingRow = React.memo(({ reading }) => {
 const HistoryScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const { state } = useApp();
-  const { user, medications, recommendations, userProfile } = state;
+  const { user, medications, recommendations, userProfile, language } = state;
 
   const [activeFilter, setActiveFilter] = useState('7d');
   const [customStart,  setCustomStart]  = useState(subDays(new Date(), 7));
@@ -156,7 +156,7 @@ const HistoryScreen = ({ navigation }) => {
     }
   }, [user?.uid]);
 
-  // Reload every time the screen comes into focus (catches new readings saved elsewhere)
+  // Reload on screen focus and when filter changes
   useFocusEffect(
     useCallback(() => {
       const filter = FILTERS.find(f => f.key === activeFilter) || FILTERS[1];
@@ -164,6 +164,14 @@ const HistoryScreen = ({ navigation }) => {
       loadStats(start, end);
     }, [activeFilter, customStart, customEnd, loadStats])
   );
+
+  // useFocusEffect only re-runs on focus transitions, NOT on dep changes while focused.
+  // This explicit effect handles custom date updates while the screen is already visible.
+  useEffect(() => {
+    if (activeFilter !== 'custom') return;
+    const { start, end } = getDateRange({ custom: true }, customStart, customEnd);
+    loadStats(start, end);
+  }, [customStart, customEnd, activeFilter, loadStats]);
 
   // ── Chart data ─────────────────────────────────────────────────────────────
   const bpChartData = useMemo(() => {
@@ -177,12 +185,11 @@ const HistoryScreen = ({ navigation }) => {
         (i % step === 0 || i === n - 1) ? format(new Date(r.timestamp), 'M/d') : ''
       ),
       datasets: [
-        { data: sampled.map(r => r.systolic),                  color: () => COLORS.high,                              strokeWidth: 3 },
-        { data: sampled.map(r => r.diastolic),                 color: () => COLORS.blue,                              strokeWidth: 3 },
-        { data: Array(n).fill(BP_THRESHOLDS.normal.systolic),  color: o => `rgba(76,175,147,${o * 0.7})`,             strokeWidth: 1, strokeDashArray: [5, 4] },
-        { data: Array(n).fill(BP_THRESHOLDS.high.systolic),    color: o => `rgba(231,76,60,${o * 0.45})`,             strokeWidth: 1, strokeDashArray: [5, 4] },
+        { data: sampled.map(r => r.systolic),                  color: () => COLORS.high,                   strokeWidth: 3 },
+        { data: sampled.map(r => r.diastolic),                 color: () => COLORS.blue,                   strokeWidth: 3 },
+        { data: Array(n).fill(BP_THRESHOLDS.normal.systolic),  color: () => 'rgba(76,175,147,0.75)',        strokeWidth: 2 },
+        { data: Array(n).fill(BP_THRESHOLDS.high.systolic),    color: () => 'rgba(231,76,60,0.75)',         strokeWidth: 2 },
       ],
-      legend: ['Systolic', 'Diastolic', 'Normal (120)', 'High (140)'],
     };
   }, [stats?.readings]);
 
@@ -198,7 +205,10 @@ const HistoryScreen = ({ navigation }) => {
       labels: sampled.map((r, i) =>
         (i % step === 0 || i === n - 1) ? format(new Date(r.timestamp), 'M/d') : ''
       ),
-      datasets: [{ data: sampled.map(r => r.pulse), color: () => COLORS.pink, strokeWidth: 3 }],
+      datasets: [
+        { data: sampled.map(r => r.pulse), color: () => COLORS.pink, strokeWidth: 3 },
+        { data: Array(n).fill(100),         color: () => 'rgba(231,76,60,0.75)', strokeWidth: 2 },
+      ],
       legend: ['Pulse (bpm)'],
     };
   }, [stats?.readings]);
@@ -234,6 +244,7 @@ const HistoryScreen = ({ navigation }) => {
         recommendations,
         profile:         userProfile,
         dateRange:       { start: rangeStart, end: rangeEnd },
+        language,
       });
     } catch (err) {
       Alert.alert('Export Failed', 'Could not generate PDF. Please try again.');
@@ -289,27 +300,65 @@ const HistoryScreen = ({ navigation }) => {
           <Card style={styles.customRangeCard} variant="flat" padding="md">
             <Text style={styles.customRangeTitle}>{t('history.select_range')}</Text>
             <View style={styles.customRangeRow}>
-              <TouchableOpacity
-                style={styles.dateButton}
-                onPress={() => setShowStartPicker(true)}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.dateButtonLabel}>{t('history.custom_start')}</Text>
-                <Text style={styles.dateButtonValue}>
-                  {format(customStart, 'MMM d, yyyy')}
-                </Text>
-              </TouchableOpacity>
-              <Text style={styles.dateSeparator}>→</Text>
-              <TouchableOpacity
-                style={styles.dateButton}
-                onPress={() => setShowEndPicker(true)}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.dateButtonLabel}>{t('history.custom_end')}</Text>
-                <Text style={styles.dateButtonValue}>
-                  {format(customEnd, 'MMM d, yyyy')}
-                </Text>
-              </TouchableOpacity>
+              {Platform.OS === 'web' ? (
+                // Web: inline text inputs (YYYY-MM-DD)
+                <>
+                  <View style={styles.dateInput}>
+                    <Text style={styles.dateButtonLabel}>{t('history.custom_start')}</Text>
+                    <TextInput
+                      style={styles.webDateTextInput}
+                      value={format(customStart, 'yyyy-MM-dd')}
+                      onChangeText={(v) => {
+                        if (/^\d{4}-\d{2}-\d{2}$/.test(v)) {
+                          const d = parseISO(v);
+                          if (!isNaN(d)) setCustomStart(startOfDay(d));
+                        }
+                      }}
+                      placeholder="YYYY-MM-DD"
+                      keyboardType="numeric"
+                      maxLength={10}
+                    />
+                  </View>
+                  <Text style={styles.dateSeparator}>→</Text>
+                  <View style={styles.dateInput}>
+                    <Text style={styles.dateButtonLabel}>{t('history.custom_end')}</Text>
+                    <TextInput
+                      style={styles.webDateTextInput}
+                      value={format(customEnd, 'yyyy-MM-dd')}
+                      onChangeText={(v) => {
+                        if (/^\d{4}-\d{2}-\d{2}$/.test(v)) {
+                          const d = parseISO(v);
+                          if (!isNaN(d)) setCustomEnd(endOfDay(d));
+                        }
+                      }}
+                      placeholder="YYYY-MM-DD"
+                      keyboardType="numeric"
+                      maxLength={10}
+                    />
+                  </View>
+                </>
+              ) : (
+                // Native: tap buttons to open picker
+                <>
+                  <TouchableOpacity
+                    style={styles.dateButton}
+                    onPress={() => setShowStartPicker(true)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.dateButtonLabel}>{t('history.custom_start')}</Text>
+                    <Text style={styles.dateButtonValue}>{format(customStart, 'MMM d, yyyy')}</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.dateSeparator}>→</Text>
+                  <TouchableOpacity
+                    style={styles.dateButton}
+                    onPress={() => setShowEndPicker(true)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.dateButtonLabel}>{t('history.custom_end')}</Text>
+                    <Text style={styles.dateButtonValue}>{format(customEnd, 'MMM d, yyyy')}</Text>
+                  </TouchableOpacity>
+                </>
+              )}
             </View>
           </Card>
         )}
@@ -388,13 +437,16 @@ const HistoryScreen = ({ navigation }) => {
                     <Text style={styles.legendText}>{t('history.diastolic_label')}</Text>
                   </View>
                   <View style={styles.legendItem}>
-                    <View style={[styles.legendDot, { backgroundColor: COLORS.normal, opacity: 0.7 }]} />
-                    <Text style={styles.legendText}>Normal (120)</Text>
+                    <View style={[styles.legendDot, { backgroundColor: COLORS.normal }]} />
+                    <Text style={styles.legendText}>{t('history.legend_normal_line')}</Text>
                   </View>
                   <View style={styles.legendItem}>
-                    <View style={[styles.legendDot, { backgroundColor: COLORS.high, opacity: 0.5 }]} />
-                    <Text style={styles.legendText}>High (140)</Text>
+                    <View style={[styles.legendDot, { backgroundColor: COLORS.high }]} />
+                    <Text style={styles.legendText}>{t('history.legend_high_line')}</Text>
                   </View>
+                </View>
+                <View style={styles.thresholdWarning}>
+                  <Text style={styles.thresholdWarningText}>⚠️ {t('history.bp_warning')}</Text>
                 </View>
               </Card>
             ) : stats.count === 1 ? (
@@ -417,7 +469,7 @@ const HistoryScreen = ({ navigation }) => {
                 <LineChart
                   data={pulseChartData}
                   width={CHART_WIDTH}
-                  height={160}
+                  height={180}
                   chartConfig={{
                     ...chartConfig,
                     color: () => COLORS.pink,
@@ -429,6 +481,19 @@ const HistoryScreen = ({ navigation }) => {
                   withDots
                   fromZero={false}
                 />
+                <View style={styles.legendRow}>
+                  <View style={styles.legendItem}>
+                    <View style={[styles.legendDot, { backgroundColor: COLORS.pink }]} />
+                    <Text style={styles.legendText}>{t('history.avg_pulse')}</Text>
+                  </View>
+                  <View style={styles.legendItem}>
+                    <View style={[styles.legendDot, { backgroundColor: COLORS.high }]} />
+                    <Text style={styles.legendText}>{t('history.legend_pulse_limit')}</Text>
+                  </View>
+                </View>
+                <View style={styles.thresholdWarning}>
+                  <Text style={styles.thresholdWarningText}>⚠️ {t('history.pulse_warning')}</Text>
+                </View>
               </Card>
             )}
 
@@ -717,6 +782,23 @@ const styles = StyleSheet.create({
   pickerTitle:  { fontSize: FONTS.md, fontWeight: FONTS.semiBold, color: COLORS.textPrimary },
   pickerCancel: { fontSize: FONTS.sm, color: COLORS.textSecondary },
   pickerDone:   { fontSize: FONTS.sm, fontWeight: FONTS.semiBold, color: COLORS.primary },
+
+  // Threshold warning banner below charts
+  thresholdWarning: {
+    backgroundColor: '#FFF3CD', borderRadius: RADIUS.sm,
+    padding: SPACING.sm, marginTop: SPACING.sm,
+    borderLeftWidth: 3, borderLeftColor: '#F5A623',
+  },
+  thresholdWarningText: { fontSize: FONTS.xs, color: '#856404', lineHeight: 18 },
+
+  // Web date input
+  dateInput: { flex: 1, alignItems: 'center' },
+  webDateTextInput: {
+    borderWidth: 2, borderColor: COLORS.primary, borderRadius: RADIUS.md,
+    padding: SPACING.sm, fontSize: FONTS.sm, color: COLORS.textPrimary,
+    backgroundColor: COLORS.primaryLight, textAlign: 'center',
+    marginTop: 4, width: '100%',
+  },
 });
 
 export default HistoryScreen;

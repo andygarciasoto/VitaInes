@@ -11,13 +11,71 @@ const STATUS_COLORS = {
   crisis:   '#8B0000',
 };
 
-const STATUS_LABELS = {
-  normal: 'Normal', elevated: 'Elevated', high: 'High', crisis: 'Crisis',
+// ─── Bilingual labels ─────────────────────────────────────────────────────────
+const LABELS = {
+  en: {
+    reportTitle:    'Blood Pressure Report',
+    period:         'Period',
+    generated:      'Generated',
+    summary:        'Summary',
+    averageBP:      'Average BP',
+    highestReading: 'Highest Reading',
+    lowestReading:  'Lowest Reading',
+    averagePulse:   'Average Pulse',
+    bpTrend:        'Blood Pressure Trend',
+    systolic:       'Systolic',
+    diastolic:      'Diastolic',
+    normalLimit:    'Normal limit (120 mmHg)',
+    highLimit:      'High limit (140 mmHg) — seek care above this',
+    allReadings:    'All Readings',
+    dateTime:       'Date & Time',
+    status:         'Status',
+    pulse:          'Pulse',
+    notes:          'Notes',
+    medications:    'Medications',
+    noMeds:         'No active medications recorded.',
+    healthRecs:     'Health Recommendations',
+    normal:         'Normal',
+    elevated:       'Elevated',
+    high:           'High',
+    crisis:         'Crisis',
+    total:          'Total',
+    readings:       'readings',
+    freq: ['As needed', 'Once daily', 'Twice daily', 'Three times daily', 'Four times daily'],
+    disclaimer: 'This report is for informational purposes only and does not replace professional medical advice. Always consult your healthcare provider before making any medical decisions.',
+  },
+  es: {
+    reportTitle:    'Informe de Presión Arterial',
+    period:         'Período',
+    generated:      'Generado',
+    summary:        'Resumen',
+    averageBP:      'PA Promedio',
+    highestReading: 'Lectura Más Alta',
+    lowestReading:  'Lectura Más Baja',
+    averagePulse:   'Pulso Promedio',
+    bpTrend:        'Tendencia de Presión Arterial',
+    systolic:       'Sistólica',
+    diastolic:      'Diastólica',
+    normalLimit:    'Límite normal (120 mmHg)',
+    highLimit:      'Límite alto (140 mmHg) — buscar atención médica',
+    allReadings:    'Todas las Lecturas',
+    dateTime:       'Fecha y Hora',
+    status:         'Estado',
+    pulse:          'Pulso',
+    notes:          'Notas',
+    medications:    'Medicamentos',
+    noMeds:         'No hay medicamentos activos registrados.',
+    healthRecs:     'Recomendaciones de Salud',
+    normal:         'Normal',
+    elevated:       'Elevada',
+    high:           'Alta',
+    crisis:         'Crisis',
+    total:          'Total',
+    readings:       'lecturas',
+    freq: ['Según sea necesario', 'Una vez al día', 'Dos veces al día', 'Tres veces al día', 'Cuatro veces al día'],
+    disclaimer: 'Este informe es solo para fines informativos y no reemplaza el consejo médico profesional. Siempre consulte a su proveedor de atención médica antes de tomar decisiones médicas.',
+  },
 };
-
-const FREQ_LABELS = [
-  'As needed', 'Once daily', 'Twice daily', 'Three times daily', 'Four times daily',
-];
 
 const sampleData = (arr, max = 20) => {
   if (arr.length <= max) return arr;
@@ -25,24 +83,24 @@ const sampleData = (arr, max = 20) => {
   return Array.from({ length: max }, (_, i) => arr[Math.floor(i * step)]);
 };
 
-// ─── SVG chart generator ─────────────────────────────────────────────────────
-const generateSVGChart = (readings) => {
+// ─── SVG chart generator ──────────────────────────────────────────────────────
+const generateSVGChart = (readings, L) => {
   if (!readings || readings.length < 2) {
-    return '<p style="color:#aaa;font-size:13px;text-align:center;padding:20px">Not enough data for chart</p>';
+    return `<p style="color:#aaa;font-size:13px;text-align:center;padding:20px">${L.allReadings}: N/A</p>`;
   }
 
-  const sorted = [...readings].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+  const sorted  = [...readings].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
   const sampled = sampleData(sorted, 20);
   const n = sampled.length;
 
-  const W = 680, H = 220;
-  const pad = { t: 20, r: 55, b: 50, l: 45 };
+  const W = 680, H = 240;
+  const pad = { t: 24, r: 70, b: 50, l: 48 };
   const iW = W - pad.l - pad.r;
   const iH = H - pad.t - pad.b;
 
-  const allVals = sampled.flatMap(r => [r.systolic, r.diastolic]);
-  const maxV = Math.max(...allVals, 160) + 10;
-  const minV = Math.max(40, Math.min(...allVals) - 10);
+  const allVals = sampled.flatMap(r => [r.systolic, r.diastolic, 120, 140]);
+  const maxV = Math.max(...allVals) + 8;
+  const minV = Math.max(40, Math.min(...sampled.flatMap(r => [r.systolic, r.diastolic])) - 10);
   const range = maxV - minV;
 
   const px = i => (pad.l + (n > 1 ? (i / (n - 1)) * iW : iW / 2)).toFixed(1);
@@ -61,40 +119,46 @@ const generateSVGChart = (readings) => {
   const dots = sampled.map((r, i) => {
     const s = getBPStatus(r.systolic, r.diastolic);
     const c = STATUS_COLORS[s] || '#4CAF93';
-    return `<circle cx="${px(i)}" cy="${py(r.systolic)}" r="4" fill="${c}"/>` +
-           `<circle cx="${px(i)}" cy="${py(r.diastolic)}" r="3" fill="#5BA4CF"/>`;
+    return `<circle cx="${px(i)}" cy="${py(r.systolic)}" r="4.5" fill="${c}" stroke="#fff" stroke-width="1"/>` +
+           `<circle cx="${px(i)}" cy="${py(r.diastolic)}" r="3.5" fill="#5BA4CF" stroke="#fff" stroke-width="1"/>`;
   }).join('');
 
-  const labels = sampled.map((r, i) => {
+  const xLabels = sampled.map((r, i) => {
     if (i % labelStep !== 0 && i !== n - 1) return '';
-    return `<text x="${px(i)}" y="${H - 8}" font-size="10" text-anchor="middle" fill="#888" font-family="Arial">${format(new Date(r.timestamp), 'M/d')}</text>`;
+    return `<text x="${px(i)}" y="${H - 10}" font-size="10" text-anchor="middle" fill="#777" font-family="Arial">${format(new Date(r.timestamp), 'M/d')}</text>`;
   }).join('');
 
-  const yLabels = [minV, Math.round((minV + maxV) / 2), maxV].map(v =>
-    `<text x="${pad.l - 5}" y="${py(v)}" font-size="10" text-anchor="end" fill="#888" font-family="Arial" dominant-baseline="middle">${v}</text>`
+  const yValues = [minV, Math.round((minV + maxV) / 2), maxV];
+  const yLabels = yValues.map(v =>
+    `<text x="${pad.l - 6}" y="${py(v)}" font-size="10" text-anchor="end" fill="#777" font-family="Arial" dominant-baseline="middle">${v}</text>`
   ).join('');
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" style="max-width:100%">
-  <rect width="${W}" height="${H}" fill="#f8faf9" rx="8"/>
-  ${show120 ? `<line x1="${pad.l}" y1="${t120.toFixed(1)}" x2="${W - pad.r}" y2="${t120.toFixed(1)}" stroke="#4CAF93" stroke-width="1.5" stroke-dasharray="6 3" opacity="0.8"/>
-  <text x="${W - pad.r + 4}" y="${(t120 + 4).toFixed(1)}" font-size="11" fill="#4CAF93" font-family="Arial">120</text>` : ''}
-  ${show140 ? `<line x1="${pad.l}" y1="${t140.toFixed(1)}" x2="${W - pad.r}" y2="${t140.toFixed(1)}" stroke="#E74C3C" stroke-width="1.5" stroke-dasharray="6 3" opacity="0.7"/>
-  <text x="${W - pad.r + 4}" y="${(t140 + 4).toFixed(1)}" font-size="11" fill="#E74C3C" font-family="Arial">140</text>` : ''}
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" style="max-width:100%;display:block">
+  <rect width="${W}" height="${H}" fill="#f9fbf9" rx="10"/>
+  ${show120 ? `
+  <line x1="${pad.l}" y1="${t120}" x2="${W - pad.r}" y2="${t120}" stroke="#4CAF93" stroke-width="2" stroke-dasharray="8 4" opacity="0.9"/>
+  <text x="${W - pad.r + 6}" y="${t120 + 4}" font-size="11" fill="#4CAF93" font-weight="bold" font-family="Arial">120</text>` : ''}
+  ${show140 ? `
+  <line x1="${pad.l}" y1="${t140}" x2="${W - pad.r}" y2="${t140}" stroke="#E74C3C" stroke-width="2.5" stroke-dasharray="8 4" opacity="0.9"/>
+  <text x="${W - pad.r + 6}" y="${t140 + 4}" font-size="11" fill="#E74C3C" font-weight="bold" font-family="Arial">140</text>` : ''}
   <path d="${diaPath}" fill="none" stroke="#5BA4CF" stroke-width="2.5" stroke-linejoin="round"/>
   <path d="${sysPath}" fill="none" stroke="#E74C3C" stroke-width="2.5" stroke-linejoin="round"/>
   ${dots}
-  ${labels}
+  ${xLabels}
   ${yLabels}
 </svg>`;
 };
 
 // ─── HTML report builder ──────────────────────────────────────────────────────
-const buildHTML = ({ readings, stats, medications = [], recommendations = [], profile, dateRange }) => {
-  const sorted = [...readings].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-  const patientName = profile?.name || 'Patient';
-  const startStr  = format(dateRange.start, 'MMM d, yyyy');
-  const endStr    = format(dateRange.end, 'MMM d, yyyy');
-  const generated = format(new Date(), 'MMM d, yyyy h:mm a');
+const buildHTML = ({ readings, stats, medications = [], recommendations = [], profile, dateRange, language = 'en' }) => {
+  const L = LABELS[language] || LABELS.en;
+  const statusLabels = { normal: L.normal, elevated: L.elevated, high: L.high, crisis: L.crisis };
+
+  const sorted      = [...readings].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+  const patientName = profile?.name || profile?.displayName || 'Patient';
+  const startStr    = format(dateRange.start, 'MMM d, yyyy');
+  const endStr      = format(dateRange.end,   'MMM d, yyyy');
+  const generated   = format(new Date(), 'MMM d, yyyy h:mm a');
 
   const counts = { normal: 0, elevated: 0, high: 0, crisis: 0 };
   readings.forEach(r => { const s = getBPStatus(r.systolic, r.diastolic); counts[s]++; });
@@ -109,7 +173,7 @@ const buildHTML = ({ readings, stats, medications = [], recommendations = [], pr
       <td style="color:${col};font-weight:bold">${r.systolic}</td>
       <td style="color:#5BA4CF;font-weight:bold">${r.diastolic}</td>
       <td>${r.pulse ? r.pulse + ' bpm' : '–'}</td>
-      <td style="color:${col};font-weight:bold">${STATUS_LABELS[s]}</td>
+      <td><span style="color:${col};font-weight:bold">${statusLabels[s]}</span></td>
       <td style="color:#666">${r.notes || '–'}</td>
     </tr>`;
   }).join('');
@@ -117,10 +181,10 @@ const buildHTML = ({ readings, stats, medications = [], recommendations = [], pr
   const medItems = activeMeds.length
     ? activeMeds.map(m => `<div class="med-item">
         <span class="med-name">${m.name}</span>
-        <span class="med-detail"> — ${m.dosage} · ${FREQ_LABELS[m.frequency] || 'Once daily'}</span>
+        <span class="med-detail"> — ${m.dosage} · ${L.freq[m.frequency] || L.freq[1]}</span>
         ${m.doctorNotes ? `<div class="med-detail" style="margin-top:2px">📋 ${m.doctorNotes}</div>` : ''}
       </div>`).join('')
-    : '<p style="color:#999">No active medications recorded.</p>';
+    : `<p style="color:#999">${L.noMeds}</p>`;
 
   const recItems = recommendations.filter(r => r.category !== 'disclaimer').slice(0, 6).map(r =>
     `<div class="rec-item">
@@ -130,48 +194,51 @@ const buildHTML = ({ readings, stats, medications = [], recommendations = [], pr
   ).join('');
 
   const avgPulseArr = readings.filter(r => r.pulse > 0);
-  const avgPulse = avgPulseArr.length
+  const avgPulse    = avgPulseArr.length
     ? Math.round(avgPulseArr.reduce((s, r) => s + r.pulse, 0) / avgPulseArr.length)
     : null;
 
   return `<!DOCTYPE html>
-<html>
+<html lang="${language}">
 <head>
 <meta charset="utf-8">
 <style>
   * { box-sizing:border-box; margin:0; padding:0; }
   body { font-family:Arial,Helvetica,sans-serif; color:#1A2E25; background:#fff; padding:32px; font-size:13px; line-height:1.6; }
   .header { display:flex; justify-content:space-between; align-items:flex-start; border-bottom:3px solid #4CAF93; padding-bottom:18px; margin-bottom:26px; }
-  .logo { font-size:26px; font-weight:bold; color:#4CAF93; }
+  .logo { font-size:28px; font-weight:bold; color:#4CAF93; }
+  .logo-sub { font-size:13px; color:#666; margin-top:4px; }
   .meta { text-align:right; color:#666; font-size:12px; }
   .meta-name { color:#1A2E25; font-size:15px; font-weight:bold; margin-bottom:4px; }
-  h2 { font-size:16px; color:#4CAF93; border-bottom:1px solid #e2ede8; padding-bottom:6px; margin:24px 0 14px; }
+  h2 { font-size:16px; color:#4CAF93; border-bottom:2px solid #e2ede8; padding-bottom:6px; margin:28px 0 14px; }
   .stats-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:14px; }
-  .stat-box { background:#f7faf8; border-radius:8px; padding:12px; text-align:center; border-top:4px solid #4CAF93; }
-  .stat-box.red { border-top-color:#E74C3C; }
+  .stat-box { background:#f7faf8; border-radius:8px; padding:14px; text-align:center; border-top:4px solid #4CAF93; }
+  .stat-box.red  { border-top-color:#E74C3C; }
   .stat-box.blue { border-top-color:#5BA4CF; }
   .stat-box.pink { border-top-color:#F4A7B9; }
   .stat-value { font-size:20px; font-weight:bold; color:#1A2E25; }
   .stat-unit  { font-size:11px; color:#aaa; }
-  .stat-label { font-size:11px; color:#666; margin-top:2px; }
-  .status-row { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; }
-  .chip { padding:5px 12px; border-radius:20px; font-size:12px; font-weight:bold; }
+  .stat-label { font-size:11px; color:#666; margin-top:3px; }
+  .status-row { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px; }
+  .chip { padding:5px 14px; border-radius:20px; font-size:12px; font-weight:bold; }
   .chip-normal   { background:#E8F5EF; color:#4CAF93; }
   .chip-elevated { background:#FEF6E7; color:#F5A623; }
   .chip-high     { background:#FDECEA; color:#E74C3C; }
   .chip-crisis   { background:#FFE8E8; color:#8B0000; }
   .chip-total    { background:#f0f0f0; color:#666; }
+  .chart-wrap { background:#f9fbf9; border-radius:10px; padding:16px; margin-bottom:8px; }
+  .chart-legend { display:flex; gap:18px; font-size:11px; margin-top:10px; flex-wrap:wrap; }
+  .legend-line { display:inline-block; width:20px; height:3px; margin-right:5px; vertical-align:middle; }
+  .threshold-note { background:#FFF8E7; border-left:4px solid #F5A623; padding:10px 14px; border-radius:4px; font-size:12px; color:#666; margin-top:10px; }
   table { width:100%; border-collapse:collapse; font-size:12px; margin-top:8px; }
   th { background:#4CAF93; color:#fff; padding:9px 8px; text-align:left; font-weight:600; }
   td { padding:7px 8px; border-bottom:1px solid #f0f5f2; vertical-align:top; }
   tr:nth-child(even) td { background:#fafcfb; }
-  .med-item { padding:7px 0; border-bottom:1px solid #f0f5f2; }
-  .med-name   { font-weight:bold; }
+  .med-item { padding:8px 0; border-bottom:1px solid #f0f5f2; }
+  .med-name   { font-weight:bold; color:#1A2E25; }
   .med-detail { color:#666; font-size:11px; }
-  .rec-item { padding:8px 0; border-bottom:1px solid #f0f5f2; }
-  .chart-legend { display:flex; gap:20px; font-size:11px; margin-top:8px; flex-wrap:wrap; }
-  .legend-swatch { display:inline-block; width:18px; height:3px; margin-right:5px; vertical-align:middle; }
-  .footer { margin-top:36px; padding:12px; background:#fff8e7; border-radius:6px; font-size:11px; color:#888; text-align:center; }
+  .rec-item { padding:8px 0; border-bottom:1px solid #f0f5f2; font-size:12px; }
+  .footer { margin-top:36px; padding:14px; background:#fff8e7; border-radius:8px; font-size:11px; color:#888; text-align:center; line-height:1.7; }
   @media print { body { padding:16px; } }
 </style>
 </head>
@@ -180,80 +247,82 @@ const buildHTML = ({ readings, stats, medications = [], recommendations = [], pr
 <div class="header">
   <div>
     <div class="logo">♥ VitaInes</div>
-    <div style="color:#666;font-size:13px;margin-top:4px">Blood Pressure Report</div>
+    <div class="logo-sub">${L.reportTitle}</div>
   </div>
   <div class="meta">
     <div class="meta-name">${patientName}</div>
-    Period: ${startStr} – ${endStr}<br>
-    Generated: ${generated}
+    ${L.period}: ${startStr} – ${endStr}<br>
+    ${L.generated}: ${generated}
   </div>
 </div>
 
-<h2>Summary</h2>
+<h2>${L.summary}</h2>
 <div class="stats-grid">
   <div class="stat-box">
     <div class="stat-value">${stats.avgSystolic}/${stats.avgDiastolic}</div>
     <div class="stat-unit">mmHg</div>
-    <div class="stat-label">Average BP</div>
+    <div class="stat-label">${L.averageBP}</div>
   </div>
   <div class="stat-box red">
     <div class="stat-value">${stats.maxSystolic}/${stats.maxDiastolic}</div>
     <div class="stat-unit">mmHg</div>
-    <div class="stat-label">Highest Reading</div>
+    <div class="stat-label">${L.highestReading}</div>
   </div>
   <div class="stat-box blue">
     <div class="stat-value">${stats.minSystolic}/${stats.minDiastolic}</div>
     <div class="stat-unit">mmHg</div>
-    <div class="stat-label">Lowest Reading</div>
+    <div class="stat-label">${L.lowestReading}</div>
   </div>
   <div class="stat-box pink">
     <div class="stat-value">${avgPulse ? avgPulse + ' bpm' : '–'}</div>
     <div class="stat-unit">&nbsp;</div>
-    <div class="stat-label">Average Pulse</div>
+    <div class="stat-label">${L.averagePulse}</div>
   </div>
 </div>
 
 <div class="status-row">
-  <span class="chip chip-normal">✅ Normal: ${counts.normal}</span>
-  <span class="chip chip-elevated">⚠️ Elevated: ${counts.elevated}</span>
-  <span class="chip chip-high">🔴 High: ${counts.high}</span>
-  <span class="chip chip-crisis">🚨 Crisis: ${counts.crisis}</span>
-  <span class="chip chip-total">Total: ${readings.length} readings</span>
+  <span class="chip chip-normal">✅ ${L.normal}: ${counts.normal}</span>
+  <span class="chip chip-elevated">⚠️ ${L.elevated}: ${counts.elevated}</span>
+  <span class="chip chip-high">🔴 ${L.high}: ${counts.high}</span>
+  <span class="chip chip-crisis">🚨 ${L.crisis}: ${counts.crisis}</span>
+  <span class="chip chip-total">${L.total}: ${readings.length} ${L.readings}</span>
 </div>
 
-<h2>Blood Pressure Trend</h2>
-${generateSVGChart(readings)}
-<div class="chart-legend">
-  <span><span class="legend-swatch" style="background:#E74C3C"></span>Systolic</span>
-  <span><span class="legend-swatch" style="background:#5BA4CF"></span>Diastolic</span>
-  <span><span class="legend-swatch" style="background:#4CAF93;border-top:2px dashed #4CAF93;height:0"></span>Normal limit (120)</span>
-  <span><span class="legend-swatch" style="border-top:2px dashed #E74C3C;height:0;opacity:0.7"></span>High limit (140)</span>
+<h2>📈 ${L.bpTrend}</h2>
+<div class="chart-wrap">
+  ${generateSVGChart(readings, L)}
+  <div class="chart-legend">
+    <span><span class="legend-line" style="background:#E74C3C"></span>${L.systolic}</span>
+    <span><span class="legend-line" style="background:#5BA4CF"></span>${L.diastolic}</span>
+    <span><span class="legend-line" style="background:#4CAF93"></span>${L.normalLimit}</span>
+    <span><span class="legend-line" style="background:#E74C3C"></span>${L.highLimit}</span>
+  </div>
+  <div class="threshold-note">⚠️ ${L.highLimit}</div>
 </div>
 
-<h2>All Readings (${sorted.length})</h2>
+<h2>${L.allReadings} (${sorted.length})</h2>
 <table>
   <thead>
     <tr>
-      <th>Date &amp; Time</th>
-      <th>Systolic</th>
-      <th>Diastolic</th>
-      <th>Pulse</th>
-      <th>Status</th>
-      <th>Notes</th>
+      <th>${L.dateTime}</th>
+      <th>${L.systolic}</th>
+      <th>${L.diastolic}</th>
+      <th>${L.pulse}</th>
+      <th>${L.status}</th>
+      <th>${L.notes}</th>
     </tr>
   </thead>
   <tbody>${rows}</tbody>
 </table>
 
-<h2>Medications</h2>
+<h2>💊 ${L.medications}</h2>
 ${medItems}
 
-${recItems ? `<h2>Health Recommendations</h2>${recItems}` : ''}
+${recItems ? `<h2>✨ ${L.healthRecs}</h2>${recItems}` : ''}
 
 <div class="footer">
-  ⚠️ This report is for informational purposes only and does not replace professional medical advice.<br>
-  Always consult your healthcare provider before making any medical decisions.<br>
-  Generated by VitaInes · ${generated}
+  ⚠️ ${L.disclaimer}<br>
+  VitaInes · ${generated}
 </div>
 
 </body>
@@ -275,7 +344,7 @@ export const exportPDFReport = async (opts) => {
   if (canShare) {
     await Sharing.shareAsync(uri, {
       mimeType: 'application/pdf',
-      dialogTitle: 'Share Blood Pressure Report',
+      dialogTitle: opts.language === 'es' ? 'Compartir Informe' : 'Share Blood Pressure Report',
       UTI: 'com.adobe.pdf',
     });
   } else {

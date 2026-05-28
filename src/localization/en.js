@@ -53,6 +53,13 @@ export default {
     step3_subtitle: 'Add your blood pressure medications (optional)',
     add_medication: 'Add Medication',
     skip_medication: 'I\'ll add medications later',
+    feature_track: 'Track your blood pressure readings',
+    feature_history: 'View trends and history charts',
+    feature_insights: 'Get personalized AI health insights',
+    feature_meds: 'Manage your medications',
+    welcome_title: 'Welcome to VitaInes',
+    welcome_subtitle: 'Your personal blood pressure health companion',
+    ready_label: 'Ready to get started?',
   },
 
   // Dashboard / Home
@@ -151,6 +158,11 @@ export default {
     select_range: 'Select Date Range',
     try_different: 'Try a different time range',
     latest_reading: 'Latest Reading',
+    bp_warning: 'Readings above 140 mmHg may require medical attention',
+    pulse_warning: 'Readings above 100 bpm may indicate elevated heart rate',
+    legend_normal_line: 'Normal (120)',
+    legend_high_line: 'High (140)',
+    legend_pulse_limit: 'Limit (100 bpm)',
   },
 
   // Medications

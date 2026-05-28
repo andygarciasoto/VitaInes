@@ -71,7 +71,7 @@ const AddReadingScreen = ({ navigation }) => {
   useEffect(() => {
     if (!saved) return;
     const timer = setTimeout(() => {
-      navigation.navigate('Main', { screen: 'Home' });
+      navigation.navigate('Main', { screen: 'History' });
     }, 900);
     return () => clearTimeout(timer);
   }, [saved, navigation]);

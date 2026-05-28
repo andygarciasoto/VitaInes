@@ -53,6 +53,13 @@ export default {
     step3_subtitle: 'Agrega tus medicamentos para la presión arterial (opcional)',
     add_medication: 'Agregar Medicamento',
     skip_medication: 'Agregaré medicamentos después',
+    feature_track: 'Registra tus lecturas de presión arterial',
+    feature_history: 'Visualiza tendencias e historial',
+    feature_insights: 'Obtén consejos de salud personalizados con IA',
+    feature_meds: 'Administra tus medicamentos',
+    welcome_title: 'Bienvenido a VitaInes',
+    welcome_subtitle: 'Tu compañero personal de salud cardiovascular',
+    ready_label: '¿Listo para comenzar?',
   },
 
   // Dashboard / Home
@@ -151,6 +158,11 @@ export default {
     select_range: 'Seleccionar Rango de Fechas',
     try_different: 'Prueba un período diferente',
     latest_reading: 'Última Lectura',
+    bp_warning: 'Lecturas superiores a 140 mmHg pueden requerir atención médica',
+    pulse_warning: 'Lecturas superiores a 100 lpm pueden indicar frecuencia cardíaca elevada',
+    legend_normal_line: 'Normal (120)',
+    legend_high_line: 'Alta (140)',
+    legend_pulse_limit: 'Límite (100 lpm)',
   },
 
   // Medications

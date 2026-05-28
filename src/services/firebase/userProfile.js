@@ -18,11 +18,10 @@ export const getUserProfile = async (userId) => {
   return null;
 };
 
-export const completeOnboarding = async (userId, onboardingData) => {
+export const completeOnboarding = async (userId, onboardingData = {}) => {
   await updateDoc(doc(db, USERS_COLLECTION, userId), {
     onboardingComplete: true,
-    measurementsPerDay: onboardingData.measurementsPerDay,
-    reminderWindows: onboardingData.reminderWindows,
+    ...onboardingData,
     updatedAt: serverTimestamp(),
   });
 };
