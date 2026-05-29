@@ -19,6 +19,7 @@ export default {
     readings: 'Lecturas',
     medications: 'Medicamentos',
     history: 'Historial',
+    insights: 'Recomendaciones',
     profile: 'Perfil',
   },
 

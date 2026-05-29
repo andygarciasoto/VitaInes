@@ -39,7 +39,12 @@ const MainTabs = ({ language }) => (
       headerShown: false,
       tabBarIcon: ({ focused }) => <TabIcon name={route.name} focused={focused} />,
       tabBarLabel: ({ focused }) => (
-        <Text style={[styles.tabLabel, focused && styles.tabLabelFocused]}>
+        <Text
+          style={[styles.tabLabel, focused && styles.tabLabelFocused]}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.75}
+        >
           {t(`nav.${route.name.toLowerCase()}`)}
         </Text>
       ),
@@ -112,16 +117,27 @@ const styles = StyleSheet.create({
   tabBar: {
     backgroundColor: COLORS.white,
     borderTopWidth: 1, borderTopColor: COLORS.border,
-    height: 72, paddingBottom: SPACING.sm, paddingTop: SPACING.sm,
+    // 84px gives 84 - 10 - 10 = 64px inner: icon(36) + gap(4) + label(14) = 54px → 10px breathing room
+    height: 84, paddingBottom: 10, paddingTop: 10,
   },
-  tabItem: { paddingTop: SPACING.xs },
+  tabItem: {
+    // No extra paddingTop — avoids the icon being pushed into the label
+    paddingTop: 0,
+    paddingBottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   tabIconContainer: {
-    width: 40, height: 40, borderRadius: 20,
+    width: 36, height: 36, borderRadius: 18,
     alignItems: 'center', justifyContent: 'center',
+    marginBottom: 3,
   },
   tabIconFocused: { backgroundColor: COLORS.primaryLight },
-  tabIcon: { fontSize: 20 },
-  tabLabel: { fontSize: 11, color: COLORS.textLight, marginTop: 2 },
+  tabIcon: { fontSize: 20, lineHeight: 24 },
+  tabLabel: {
+    fontSize: 10.5, color: COLORS.textLight,
+    textAlign: 'center', maxWidth: 72,
+  },
   tabLabelFocused: { color: COLORS.primary, fontWeight: FONTS.semiBold },
 });
 
