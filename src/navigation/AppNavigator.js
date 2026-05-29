@@ -122,7 +122,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: FONTS.xxl,
-    fontFamily: FONTS.familyBold,
+    fontWeight: FONTS.bold,
     color: COLORS.primary,
     letterSpacing: 0.5,
   },
