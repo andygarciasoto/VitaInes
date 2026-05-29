@@ -1,9 +1,10 @@
 /**
- * Generates all required Expo assets:
- *   assets/icon.png             1024×1024  (App Store / Play Store icon)
- *   assets/adaptive-icon.png    1024×1024  (Android adaptive icon foreground)
- *   assets/splash.png           1284×2778  (iPhone 14 Pro Max splash)
- *   assets/notification-icon.png  96×96    (Android notification icon — white on transparent)
+ * Generates VitaInes app icons matching the Vi logo:
+ *   - Cream background
+ *   - Green "V" (two thick diagonal arms)
+ *   - Blue "i" stem (rounded rectangle, no dot)
+ *   - Pink heart above the i
+ *   - Green smile arc below the letters
  */
 
 const { PNG } = require('pngjs');
@@ -13,108 +14,167 @@ const path = require('path');
 const ASSETS = path.join(__dirname, 'assets');
 if (!fs.existsSync(ASSETS)) fs.mkdirSync(ASSETS);
 
-// Brand colors
-const PRIMARY  = [76, 175, 147, 255];   // #4CAF93 teal-green
-const BG_LIGHT = [240, 248, 244, 255];  // #F0F8F4 light mint
-const WHITE    = [255, 255, 255, 255];
+// Brand colors  [R, G, B, A]
+const CREAM = [245, 242, 230, 255];  // #F5F2E6 — icon background
+const MINT  = [240, 248, 244, 255];  // #F0F8F4 — splash background
+const GREEN = [139, 184, 122, 255];  // #8BB87A — V letter + smile
+const BLUE  = [107, 159, 192, 255];  // #6B9FC0 — i letter
+const PINK  = [244, 160, 176, 255];  // #F4A0B0 — heart
+const WHITE = [255, 255, 255, 255];
 
-// ─── helpers ─────────────────────────────────────────────────────────────────
+// ─── pixel helpers ──────────────────────────────────────────────────────────
 
-function createPNG(w, h) {
+function createPNG(w, h, fill) {
   const png = new PNG({ width: w, height: h, filterType: -1 });
   png.data = Buffer.alloc(w * h * 4, 0);
+  if (fill) {
+    for (let i = 0; i < w * h * 4; i += 4) {
+      png.data[i]     = fill[0];
+      png.data[i + 1] = fill[1];
+      png.data[i + 2] = fill[2];
+      png.data[i + 3] = fill[3];
+    }
+  }
   return png;
 }
 
-function setPixel(png, x, y, [r, g, b, a]) {
+function px(png, x, y, c) {
+  x = Math.round(x); y = Math.round(y);
   if (x < 0 || y < 0 || x >= png.width || y >= png.height) return;
   const i = (png.width * y + x) * 4;
-  png.data[i]     = r;
-  png.data[i + 1] = g;
-  png.data[i + 2] = b;
-  png.data[i + 3] = a;
+  png.data[i] = c[0]; png.data[i+1] = c[1];
+  png.data[i+2] = c[2]; png.data[i+3] = c[3];
 }
 
-function fillRect(png, x0, y0, x1, y1, color) {
-  for (let y = y0; y <= y1; y++)
-    for (let x = x0; x <= x1; x++)
-      setPixel(png, x, y, color);
+// Filled circle
+function circle(png, cx, cy, r, c) {
+  const r2 = r * r;
+  for (let y = Math.ceil(cy - r); y <= cy + r; y++)
+    for (let x = Math.ceil(cx - r); x <= cx + r; x++)
+      if ((x-cx)**2 + (y-cy)**2 <= r2) px(png, x, y, c);
 }
 
-function fillCircle(png, cx, cy, r, color) {
-  for (let y = cy - r; y <= cy + r; y++)
-    for (let x = cx - r; x <= cx + r; x++)
-      if ((x - cx) ** 2 + (y - cy) ** 2 <= r * r)
-        setPixel(png, x, y, color);
-}
-
-// Draw a ♥ heart using two circles + a triangle
-function drawHeart(png, cx, cy, size, color) {
-  const r = Math.round(size * 0.28);
-  // two circles for the top bumps
-  fillCircle(png, cx - r, cy - Math.round(size * 0.05), r, color);
-  fillCircle(png, cx + r, cy - Math.round(size * 0.05), r, color);
-  // triangle for the bottom point
-  const top    = cy - Math.round(size * 0.05) + r;
-  const bottom = cy + Math.round(size * 0.55);
-  const left   = cx - Math.round(size * 0.56);
-  const right  = cx + Math.round(size * 0.56);
-  for (let y = top; y <= bottom; y++) {
-    const progress = (y - top) / (bottom - top);
-    const halfW    = Math.round((left < right ? right - cx : cx - left) * (1 - progress));
-    fillRect(png, cx - halfW, y, cx + halfW, y, color);
+// Thick line by placing circles along its path
+function line(png, x1, y1, x2, y2, thick, c) {
+  const dx = x2-x1, dy = y2-y1;
+  const steps = Math.ceil(Math.hypot(dx, dy));
+  const r = thick / 2;
+  for (let s = 0; s <= steps; s++) {
+    const t = s / steps;
+    circle(png, x1 + dx*t, y1 + dy*t, r, c);
   }
 }
 
-// Rounded-rectangle background
-function fillRoundedRect(png, x0, y0, x1, y1, radius, color) {
-  fillRect(png, x0 + radius, y0, x1 - radius, y1, color);
-  fillRect(png, x0, y0 + radius, x1, y1 - radius, color);
-  fillCircle(png, x0 + radius, y0 + radius, radius, color);
-  fillCircle(png, x1 - radius, y0 + radius, radius, color);
-  fillCircle(png, x0 + radius, y1 - radius, radius, color);
-  fillCircle(png, x1 - radius, y1 - radius, radius, color);
+// Filled rounded rectangle
+function roundRect(png, x0, y0, x1, y1, r, c) {
+  for (let y = y0+r; y <= y1-r; y++) for (let x = x0;   x <= x1;   x++) px(png,x,y,c);
+  for (let y = y0;   y <= y1;   y++) for (let x = x0+r; x <= x1-r; x++) px(png,x,y,c);
+  circle(png, x0+r, y0+r, r, c);
+  circle(png, x1-r, y0+r, r, c);
+  circle(png, x0+r, y1-r, r, c);
+  circle(png, x1-r, y1-r, r, c);
 }
 
-function save(png, filename) {
-  const dest = path.join(ASSETS, filename);
-  const buf  = PNG.sync.write(png);
-  fs.writeFileSync(dest, buf);
-  console.log(`✅  ${filename}  (${png.width}×${png.height})`);
+// Filled heart: two circles + downward triangle
+function heart(png, cx, cy, size, c) {
+  const r   = Math.round(size * 0.27);
+  const bump = Math.round(size * 0.06);
+  circle(png, cx - r, cy - bump, r, c);
+  circle(png, cx + r, cy - bump, r, c);
+  const top = cy - bump + r - 2;
+  const bot = cy + Math.round(size * 0.52);
+  const hw  = Math.round(size * 0.54);
+  for (let y = top; y <= bot; y++) {
+    const p = (y - top) / (bot - top);
+    const w = Math.round(hw * (1 - p));
+    for (let x = cx - w; x <= cx + w; x++) px(png, x, y, c);
+  }
 }
 
-// ─── icon.png  1024×1024 ──────────────────────────────────────────────────────
-function makeIcon(w, h, bgColor, heartColor) {
-  const png = createPNG(w, h);
-  // Background — rounded square with large radius
-  const radius = Math.round(w * 0.18);
-  fillRoundedRect(png, 0, 0, w - 1, h - 1, radius, bgColor);
-  // Heart centered, ~52% of icon height
-  drawHeart(png, Math.round(w / 2), Math.round(h * 0.47), Math.round(h * 0.52), heartColor);
-  return png;
+// Arc segment (thick) — angles in radians, screen coords (y down)
+function arc(png, cx, cy, r, a0, a1, thick, c) {
+  const steps = Math.ceil(r * Math.abs(a1 - a0));
+  const hr = thick / 2;
+  for (let s = 0; s <= steps; s++) {
+    const a = a0 + (a1 - a0) * s / steps;
+    circle(png, cx + r * Math.cos(a), cy + r * Math.sin(a), hr, c);
+  }
 }
 
-save(makeIcon(1024, 1024, BG_LIGHT, PRIMARY), 'icon.png');
-save(makeIcon(1024, 1024, WHITE,    PRIMARY), 'adaptive-icon.png');
+// ─── Vi logo renderer ────────────────────────────────────────────────────────
+// All reference coordinates are for 1024×1024; pass scale factor for other sizes.
+// originX/originY offset the whole logo (for splash centering).
 
-// ─── splash.png  1284×2778 ───────────────────────────────────────────────────
+function drawViLogo(png, scale = 1, originX = 0, originY = 0) {
+  const s  = (v) => v * scale;
+  const tx = (v) => originX + s(v);
+  const ty = (v) => originY + s(v);
+
+  const thick = s(66);   // stroke thickness for V arms
+
+  // ── Green V ──────────────────────────────────────────────────────────────
+  const vTipX = tx(383);  // bottom-center meeting point of V
+  const vTipY = ty(718);
+  line(png, tx(168), ty(185), vTipX, vTipY, thick, GREEN); // left arm
+  line(png, vTipX, vTipY, tx(564), ty(185), thick, GREEN); // right arm
+
+  // ── Blue i stem (no dot — heart takes its place) ──────────────────────────
+  roundRect(png, tx(598), ty(228), tx(660), ty(714), s(30), BLUE);
+
+  // ── Pink heart above i ─────────────────────────────────────────────────────
+  heart(png, tx(629), ty(148), s(95), PINK);
+
+  // ── Green smile arc ────────────────────────────────────────────────────────
+  // Arc center is above/inside the letters; bottom point of arc sits at ~y780.
+  // Screen angles: 0=right, π/2=down (y-axis flipped)
+  // We draw from ~38° to ~142° (bottom half of circle = smile shape).
+  arc(png, tx(376), ty(562), s(218), 0.66, 2.48, s(38), GREEN);
+}
+
+// ─── Asset generation ────────────────────────────────────────────────────────
+
+function save(png, name) {
+  fs.writeFileSync(path.join(ASSETS, name), PNG.sync.write(png));
+  console.log(`✅  ${name}  (${png.width}×${png.height})`);
+}
+
+// icon.png — 1024×1024, cream background with rounded corner shape
+{
+  const W = 1024, H = 1024;
+  const png = createPNG(W, H, CREAM);
+  // Clip to rounded square (iOS adds mask automatically, but good for previews)
+  drawViLogo(png, 1, 0, 0);
+  save(png, 'icon.png');
+}
+
+// adaptive-icon.png — 1024×1024, white background (Android adaptive icon foreground)
+{
+  const W = 1024, H = 1024;
+  const png = createPNG(W, H, WHITE);
+  drawViLogo(png, 1, 0, 0);
+  save(png, 'adaptive-icon.png');
+}
+
+// splash.png — 1284×2778 (iPhone 14 Pro Max), logo centered on mint background
 {
   const W = 1284, H = 2778;
-  const png = createPNG(W, H);
-  fillRect(png, 0, 0, W - 1, H - 1, BG_LIGHT);
-  // Heart in the upper half
-  drawHeart(png, Math.round(W / 2), Math.round(H * 0.38), Math.round(W * 0.42), PRIMARY);
+  const png = createPNG(W, H, MINT);
+  // Draw logo at 65% size, centered horizontally, slightly above vertical center
+  const logoScale = 0.65;
+  const logoW = 1024 * logoScale;
+  const logoH = 800 * logoScale; // approx visual height of logo
+  const ox = (W - logoW) / 2 - 20; // slight left adjust for visual balance
+  const oy = H * 0.35;              // upper half of screen
+  drawViLogo(png, logoScale, ox, oy);
   save(png, 'splash.png');
 }
 
-// ─── notification-icon.png  96×96 ────────────────────────────────────────────
-// Android needs a white-on-transparent icon
+// notification-icon.png — 96×96, white heart on transparent (Android notifications)
 {
   const W = 96, H = 96;
-  const png = createPNG(W, H);
-  // transparent background (already zero-filled)
-  drawHeart(png, Math.round(W / 2), Math.round(H * 0.47), Math.round(H * 0.72), WHITE);
+  const png = createPNG(W, H, null); // transparent
+  heart(png, W/2, H*0.5, H*0.75, WHITE);
   save(png, 'notification-icon.png');
 }
 
-console.log('\nAll assets generated in ./assets/');
+console.log('\nVitaInes assets generated successfully!');
