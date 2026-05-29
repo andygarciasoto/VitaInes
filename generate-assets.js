@@ -3,8 +3,8 @@
  *   - Cream background
  *   - Green "V" (two thick diagonal arms)
  *   - Blue "i" stem (rounded rectangle, no dot)
- *   - Pink heart above the i
- *   - Green smile arc below the letters
+ *   - Pink heart above the i (algebraic formula — no seam artifacts)
+ *   - Green smile arc centered under BOTH V and i letters
  */
 
 const { PNG } = require('pngjs');
@@ -75,19 +75,21 @@ function roundRect(png, x0, y0, x1, y1, r, c) {
   circle(png, x1-r, y1-r, r, c);
 }
 
-// Filled heart: two circles + downward triangle
+// Filled heart using the algebraic implicit curve (x²+y²-1)³ ≤ x²·y³
+// No two-circle seam artifact — mathematically smooth shape.
 function heart(png, cx, cy, size, c) {
-  const r   = Math.round(size * 0.27);
-  const bump = Math.round(size * 0.06);
-  circle(png, cx - r, cy - bump, r, c);
-  circle(png, cx + r, cy - bump, r, c);
-  const top = cy - bump + r - 2;
-  const bot = cy + Math.round(size * 0.52);
-  const hw  = Math.round(size * 0.54);
-  for (let y = top; y <= bot; y++) {
-    const p = (y - top) / (bot - top);
-    const w = Math.round(hw * (1 - p));
-    for (let x = cx - w; x <= cx + w; x++) px(png, x, y, c);
+  const rx = size * 0.60;  // horizontal half-extent
+  const ry = size * 0.55;  // vertical half-extent (top indent to bottom tip)
+  const x0 = Math.floor(cx - rx), x1 = Math.ceil(cx + rx);
+  const y0 = Math.floor(cy - ry * 1.05), y1 = Math.ceil(cy + ry);
+  for (let y = y0; y <= y1; y++) {
+    for (let x = x0; x <= x1; x++) {
+      const nx = (x - cx) / rx;
+      // Negate y so bumps are toward screen-top (lower screen-y values)
+      const ny = -(y - cy) / ry;
+      const q = nx*nx + ny*ny - 1;
+      if (q*q*q <= nx*nx * ny*ny*ny) px(png, x, y, c);
+    }
   }
 }
 
@@ -103,7 +105,12 @@ function arc(png, cx, cy, r, a0, a1, thick, c) {
 
 // ─── Vi logo renderer ────────────────────────────────────────────────────────
 // All reference coordinates are for 1024×1024; pass scale factor for other sizes.
-// originX/originY offset the whole logo (for splash centering).
+// originX/originY offset the whole logo (used to center in different canvas sizes).
+//
+// Logo bounding box in local coords (scale=1, origin=0):
+//   x: [135, 686]  →  center at 410.5
+//   y: [96,  862]  →  center at 479
+// For a 1024×1024 canvas use originX=102, originY=33 to center perfectly.
 
 function drawViLogo(png, scale = 1, originX = 0, originY = 0) {
   const s  = (v) => v * scale;
@@ -121,14 +128,14 @@ function drawViLogo(png, scale = 1, originX = 0, originY = 0) {
   // ── Blue i stem (no dot — heart takes its place) ──────────────────────────
   roundRect(png, tx(598), ty(228), tx(660), ty(714), s(30), BLUE);
 
-  // ── Pink heart above i ─────────────────────────────────────────────────────
+  // ── Pink heart above i — algebraic formula, no seam artifacts ─────────────
   heart(png, tx(629), ty(148), s(95), PINK);
 
-  // ── Green smile arc ────────────────────────────────────────────────────────
-  // Arc center is above/inside the letters; bottom point of arc sits at ~y780.
-  // Screen angles: 0=right, π/2=down (y-axis flipped)
-  // We draw from ~38° to ~142° (bottom half of circle = smile shape).
-  arc(png, tx(376), ty(562), s(218), 0.66, 2.48, s(38), GREEN);
+  // ── Green smile arc centered under BOTH V and i ───────────────────────────
+  // Center x=414 is the midpoint of the full Vi span (168→660).
+  // Radius 265 spans from ~x=205 to x=623 (local), covering both letters.
+  // Angles: 0.66 rad (38°, lower-right) → 2.48 rad (142°, lower-left)
+  arc(png, tx(414), ty(575), s(265), 0.66, 2.48, s(44), GREEN);
 }
 
 // ─── Asset generation ────────────────────────────────────────────────────────
@@ -138,12 +145,12 @@ function save(png, name) {
   console.log(`✅  ${name}  (${png.width}×${png.height})`);
 }
 
-// icon.png — 1024×1024, cream background with rounded corner shape
+// icon.png — 1024×1024, cream background, logo perfectly centered
 {
   const W = 1024, H = 1024;
   const png = createPNG(W, H, CREAM);
-  // Clip to rounded square (iOS adds mask automatically, but good for previews)
-  drawViLogo(png, 1, 0, 0);
+  // originX=102, originY=33 centers the logo bounding box in the 1024×1024 frame
+  drawViLogo(png, 1, 102, 33);
   save(png, 'icon.png');
 }
 
@@ -151,21 +158,17 @@ function save(png, name) {
 {
   const W = 1024, H = 1024;
   const png = createPNG(W, H, WHITE);
-  drawViLogo(png, 1, 0, 0);
+  drawViLogo(png, 1, 102, 33);
   save(png, 'adaptive-icon.png');
 }
 
 // splash.png — 1284×2778 (iPhone 14 Pro Max), logo centered on mint background
+// originX=375 → horizontally centers in 1284px wide canvas
+// originY=661 → vertically centers the logo at ~35% down the screen
 {
   const W = 1284, H = 2778;
   const png = createPNG(W, H, MINT);
-  // Draw logo at 65% size, centered horizontally, slightly above vertical center
-  const logoScale = 0.65;
-  const logoW = 1024 * logoScale;
-  const logoH = 800 * logoScale; // approx visual height of logo
-  const ox = (W - logoW) / 2 - 20; // slight left adjust for visual balance
-  const oy = H * 0.35;              // upper half of screen
-  drawViLogo(png, logoScale, ox, oy);
+  drawViLogo(png, 0.65, 375, 661);
   save(png, 'splash.png');
 }
 

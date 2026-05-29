@@ -9,6 +9,7 @@ import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../../constants/theme';
 import { t } from '../../localization';
 import Button from '../../components/common/Button';
 import LanguageToggle from '../../components/common/LanguageToggle';
+import ViLogo from '../../components/common/ViLogo';
 import { signIn } from '../../services/firebase/auth';
 import { googleSignIn } from '../../services/firebase/socialAuth';
 import { useApp } from '../../store/AppContext';
@@ -73,9 +74,7 @@ const SignInScreen = ({ navigation }) => {
           </View>
 
           <View style={styles.logoContainer}>
-            <View style={styles.logoCircle}>
-              <Text style={styles.logoHeart}>♥</Text>
-            </View>
+            <ViLogo size={100} />
             <Text style={styles.appName}>{t('app.name')}</Text>
             <Text style={styles.tagline}>{t('app.tagline')}</Text>
           </View>
@@ -164,16 +163,6 @@ const styles = StyleSheet.create({
   langRow: { alignItems: 'flex-end', marginBottom: SPACING.lg },
 
   logoContainer: { alignItems: 'center', marginBottom: SPACING.xl },
-  logoCircle: {
-    width: 96, height: 96, borderRadius: 48,
-    backgroundColor: COLORS.primary,
-    alignItems: 'center', justifyContent: 'center',
-    marginBottom: SPACING.md,
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3, shadowRadius: 16, elevation: 8,
-  },
-  logoHeart: { fontSize: 48, color: COLORS.white },
   appName: { fontSize: FONTS.xxl, fontWeight: FONTS.bold, color: COLORS.textPrimary, marginBottom: SPACING.xs },
   tagline: { fontSize: FONTS.md, color: COLORS.textSecondary },
 

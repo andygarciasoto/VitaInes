@@ -2,7 +2,7 @@ export default {
   // App
   app: {
     name: 'VitaInes',
-    tagline: 'Your Health Companion',
+    tagline: 'Know Your Numbers, Own Your Health',
     disclaimer: 'This app does not replace professional medical advice. Always consult your doctor.',
   },
 

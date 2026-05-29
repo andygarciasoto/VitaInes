@@ -9,6 +9,7 @@ import { COLORS, FONTS, SPACING, RADIUS } from '../../constants/theme';
 import { t } from '../../localization';
 import Button from '../../components/common/Button';
 import LanguageToggle from '../../components/common/LanguageToggle';
+import ViLogo from '../../components/common/ViLogo';
 import { signUp } from '../../services/firebase/auth';
 
 // Defined outside the screen so it never remounts on re-render
@@ -77,9 +78,7 @@ const SignUpScreen = ({ navigation }) => {
           </View>
 
           <View style={styles.logoContainer}>
-            <View style={styles.logoCircle}>
-              <Text style={styles.logoHeart}>♥</Text>
-            </View>
+            <ViLogo size={80} />
             <Text style={styles.appName}>{t('app.name')}</Text>
           </View>
 
@@ -115,11 +114,6 @@ const styles = StyleSheet.create({
   topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.lg },
   back: { fontSize: FONTS.xl, color: COLORS.primary, padding: SPACING.sm },
   logoContainer: { alignItems: 'center', marginBottom: SPACING.xl },
-  logoCircle: {
-    width: 72, height: 72, borderRadius: 36, backgroundColor: COLORS.primary,
-    alignItems: 'center', justifyContent: 'center', marginBottom: SPACING.sm,
-  },
-  logoHeart: { fontSize: 36, color: COLORS.white },
   appName: { fontSize: FONTS.xl, fontWeight: FONTS.bold, color: COLORS.textPrimary },
   form: {
     backgroundColor: COLORS.white, borderRadius: RADIUS.xl, padding: SPACING.xl,

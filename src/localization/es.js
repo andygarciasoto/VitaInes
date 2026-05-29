@@ -2,7 +2,7 @@ export default {
   // App
   app: {
     name: 'VitaInes',
-    tagline: 'Tu Compañero de Salud',
+    tagline: 'Conoce tus Cifras, Cuida tu Salud',
     disclaimer: 'Esta aplicación no reemplaza el consejo médico profesional. Siempre consulta a tu médico.',
   },
 
