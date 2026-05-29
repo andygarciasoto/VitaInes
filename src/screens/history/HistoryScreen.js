@@ -84,14 +84,23 @@ const StatCard = React.memo(({ label, value, unit, color }) => (
   </View>
 ));
 
-const StatusChip = React.memo(({ emoji, label, count, color, bg }) => (
-  <View style={[styles.statusChip, { backgroundColor: bg }]}>
+const StatusChip = React.memo(({ emoji, label, count, color, bg, active, dimmed, onPress }) => (
+  <TouchableOpacity
+    style={[
+      styles.statusChip,
+      { backgroundColor: bg },
+      active  && { borderWidth: 2.5, borderColor: color },
+      dimmed  && styles.statusChipDimmed,
+    ]}
+    onPress={onPress}
+    activeOpacity={0.75}
+  >
     <Text style={styles.statusChipEmoji}>{emoji}</Text>
     <View>
       <Text style={[styles.statusChipCount, { color }]}>{count}</Text>
       <Text style={[styles.statusChipLabel, { color }]}>{label}</Text>
     </View>
-  </View>
+  </TouchableOpacity>
 ));
 
 const ReadingRow = React.memo(({ reading }) => {
@@ -134,6 +143,7 @@ const HistoryScreen = ({ navigation }) => {
   const [loading,  setLoading]  = useState(true);
   const [exporting, setExporting] = useState(false);
   const [showAll, setShowAll] = useState(false);
+  const [statusFilter, setStatusFilter] = useState(null); // null | 'normal' | 'elevated' | 'high' | 'crisis'
 
   // ── Load data ──────────────────────────────────────────────────────────────
   const loadStats = useCallback(async (start, end) => {
@@ -143,6 +153,7 @@ const HistoryScreen = ({ navigation }) => {
       const data = await getReadingStats(user.uid, start, end);
       setStats(data);
       setShowAll(false);
+      setStatusFilter(null);
     } catch {
       setStats(null);
     } finally {
@@ -179,6 +190,13 @@ const HistoryScreen = ({ navigation }) => {
     return Math.round(arr.reduce((s, r) => s + r.pulse, 0) / arr.length);
   }, [stats?.readings]);
 
+  // Readings filtered by the active status chip (null = show all)
+  const filteredReadings = useMemo(() => {
+    if (!stats?.readings) return [];
+    if (!statusFilter) return stats.readings;
+    return stats.readings.filter(r => getBPStatus(r.systolic, r.diastolic) === statusFilter);
+  }, [stats?.readings, statusFilter]);
+
   // ── Date range label ───────────────────────────────────────────────────────
   const currentFilter = FILTERS.find(f => f.key === activeFilter) || FILTERS[1];
   const { start: rangeStart, end: rangeEnd } = getDateRange(currentFilter, customStart, customEnd);
@@ -208,9 +226,7 @@ const HistoryScreen = ({ navigation }) => {
   };
 
   // ── Render ─────────────────────────────────────────────────────────────────
-  const readingsToShow = stats?.readings
-    ? (showAll ? stats.readings : stats.readings.slice(0, 25))
-    : [];
+  const readingsToShow = showAll ? filteredReadings : filteredReadings.slice(0, 25);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -304,6 +320,12 @@ const HistoryScreen = ({ navigation }) => {
                       count={statusCounts[s.key]}
                       color={s.color}
                       bg={s.bg}
+                      active={statusFilter === s.key}
+                      dimmed={statusFilter !== null && statusFilter !== s.key}
+                      onPress={() => {
+                        setStatusFilter(prev => prev === s.key ? null : s.key);
+                        setShowAll(false);
+                      }}
                     />
                   ))}
                 </View>
@@ -311,34 +333,40 @@ const HistoryScreen = ({ navigation }) => {
             )}
 
             {/* BP Trend chart */}
-            {stats.count >= 2 ? (
+            {filteredReadings.length >= 2 ? (
               <Card style={styles.chartCard} padding="sm">
                 <Text style={styles.chartTitle}>📈 {t('history.bp_trend')}</Text>
                 <BPChart
-                  readings={stats.readings}
+                  readings={filteredReadings}
                   width={CHART_WIDTH}
                   language={language}
                 />
               </Card>
-            ) : stats.count === 1 ? (
+            ) : filteredReadings.length === 1 ? (
               <Card style={styles.chartCard} padding="md">
                 <Text style={styles.chartTitle}>{t('history.latest_reading')}</Text>
                 <View style={styles.singleReadingView}>
-                  <Text style={[styles.singleBP, { color: getBPColor(stats.readings[0].systolic, stats.readings[0].diastolic) }]}>
-                    {stats.readings[0].systolic}/{stats.readings[0].diastolic}
+                  <Text style={[styles.singleBP, { color: getBPColor(filteredReadings[0].systolic, filteredReadings[0].diastolic) }]}>
+                    {filteredReadings[0].systolic}/{filteredReadings[0].diastolic}
                   </Text>
                   <Text style={styles.singleUnit}>mmHg</Text>
-                  <BPStatusBadge systolic={stats.readings[0].systolic} diastolic={stats.readings[0].diastolic} />
+                  <BPStatusBadge systolic={filteredReadings[0].systolic} diastolic={filteredReadings[0].diastolic} />
                 </View>
+              </Card>
+            ) : statusFilter ? (
+              <Card style={styles.chartCard} padding="md">
+                <Text style={[styles.emptyTitle, { textAlign: 'center', paddingVertical: SPACING.lg }]}>
+                  No {STATUS_CONFIG.find(s => s.key === statusFilter)?.emoji} readings in this period
+                </Text>
               </Card>
             ) : null}
 
             {/* Pulse trend chart */}
-            {stats.readings?.some(r => r.pulse > 0) && (
+            {filteredReadings.some(r => r.pulse > 0) && (
               <Card style={styles.chartCard} padding="sm">
                 <Text style={styles.chartTitle}>♥ {t('history.pulse_trend')}</Text>
                 <PulseChart
-                  readings={stats.readings}
+                  readings={filteredReadings}
                   width={CHART_WIDTH}
                   language={language}
                 />
@@ -348,21 +376,24 @@ const HistoryScreen = ({ navigation }) => {
             {/* Readings list */}
             <Card style={styles.listCard} padding="md">
               <Text style={styles.listTitle}>
-                {t('history.all_readings')} ({stats.count})
+                {statusFilter
+                  ? `${STATUS_CONFIG.find(s => s.key === statusFilter)?.emoji} ${t(STATUS_CONFIG.find(s => s.key === statusFilter)?.labelKey)} (${filteredReadings.length})`
+                  : `${t('history.all_readings')} (${stats.count})`
+                }
               </Text>
               {[...readingsToShow]
                 .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
                 .map(r => (
                   <ReadingRow key={r.id} reading={r} />
                 ))}
-              {!showAll && stats.readings.length > 25 && (
+              {!showAll && filteredReadings.length > 25 && (
                 <TouchableOpacity
                   style={styles.showMoreBtn}
                   onPress={() => setShowAll(true)}
                   activeOpacity={0.8}
                 >
                   <Text style={styles.showMoreText}>
-                    {t('history.show_more', { count: stats.readings.length })}
+                    {t('history.show_more', { count: filteredReadings.length })}
                   </Text>
                 </TouchableOpacity>
               )}
@@ -485,6 +516,7 @@ const styles = StyleSheet.create({
   statusChipEmoji: { fontSize: 20 },
   statusChipCount: { fontSize: FONTS.lg, fontWeight: FONTS.bold },
   statusChipLabel: { fontSize: FONTS.xs, fontWeight: FONTS.medium },
+  statusChipDimmed: { opacity: 0.45 },
 
   // Charts
   chartCard: { marginBottom: SPACING.md },
