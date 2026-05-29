@@ -6,6 +6,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useApp } from '../store/AppContext';
 import { COLORS, FONTS, SPACING } from '../constants/theme';
 import { t } from '../localization';
+import ViLogo from '../components/common/ViLogo';
 
 import SignInScreen from '../screens/auth/SignInScreen';
 import SignUpScreen from '../screens/auth/SignUpScreen';
@@ -83,7 +84,7 @@ const AppNavigator = () => {
   if (authLoading) {
     return (
       <View style={styles.loading}>
-        <Text style={styles.loadingHeart}>♥</Text>
+        <ViLogo size={100} />
         <Text style={styles.loadingText}>VitaInes</Text>
       </View>
     );
@@ -117,9 +118,14 @@ const styles = StyleSheet.create({
   loading: {
     flex: 1, alignItems: 'center', justifyContent: 'center',
     backgroundColor: COLORS.primaryLight,
+    gap: 12,
   },
-  loadingHeart: { fontSize: 64, color: COLORS.primary, marginBottom: SPACING.md },
-  loadingText:  { fontSize: FONTS.xxl, fontWeight: FONTS.bold, color: COLORS.primary },
+  loadingText: {
+    fontSize: FONTS.xxl,
+    fontFamily: FONTS.familyBold,
+    color: COLORS.primary,
+    letterSpacing: 0.5,
+  },
 
   // Tab bar container — height only, no padding (all spacing lives inside TabItem)
   tabBar: {

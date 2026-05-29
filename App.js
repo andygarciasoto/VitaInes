@@ -4,22 +4,36 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as SplashScreen from 'expo-splash-screen';
 import * as Notifications from 'expo-notifications';
+import {
+  useFonts,
+  Nunito_400Regular,
+  Nunito_500Medium,
+  Nunito_600SemiBold,
+  Nunito_700Bold,
+} from '@expo-google-fonts/nunito';
 import { AppProvider } from './src/store/AppContext';
 import AppNavigator from './src/navigation/AppNavigator';
 
 SplashScreen.preventAutoHideAsync();
 
 export default function App() {
+  const [fontsLoaded] = useFonts({
+    Nunito_400Regular,
+    Nunito_500Medium,
+    Nunito_600SemiBold,
+    Nunito_700Bold,
+  });
+
   useEffect(() => {
-    // Hide splash screen after a short delay
+    // Don't hide splash until fonts are ready
+    if (!fontsLoaded) return;
+
     const timer = setTimeout(() => {
       SplashScreen.hideAsync();
-    }, 1500);
+    }, 1200);
 
-    // Handle notification responses (taps)
     const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
       const { type } = response.notification.request.content.data || {};
-      // Navigation based on notification type can be added here
       console.log('Notification tapped:', type);
     });
 
@@ -27,7 +41,10 @@ export default function App() {
       clearTimeout(timer);
       subscription.remove();
     };
-  }, []);
+  }, [fontsLoaded]);
+
+  // Keep splash screen visible while fonts load
+  if (!fontsLoaded) return null;
 
   return (
     <SafeAreaProvider>

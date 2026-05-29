@@ -106,7 +106,10 @@ export const AppProvider = ({ children }) => {
 
   // Subscribe to Firebase auth state
   useEffect(() => {
+    let failsafe;
+
     const unsubscribe = subscribeToAuthState(async (user) => {
+      clearTimeout(failsafe);
       if (user) {
         dispatch({ type: 'SET_USER', payload: user });
         try {
@@ -123,7 +126,16 @@ export const AppProvider = ({ children }) => {
         dispatch({ type: 'SIGN_OUT' });
       }
     });
-    return unsubscribe;
+
+    // If Firebase never fires (offline / init failure), unblock navigation after 6 s
+    failsafe = setTimeout(() => {
+      dispatch({ type: 'SET_AUTH_LOADING', payload: false });
+    }, 6000);
+
+    return () => {
+      clearTimeout(failsafe);
+      unsubscribe();
+    };
   }, []);
 
   const setLanguage = async (lang) => {

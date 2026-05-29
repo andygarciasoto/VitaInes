@@ -44,6 +44,12 @@ export const COLORS = {
 };
 
 export const FONTS = {
+  // Font families (Nunito — rounded, wellness-friendly)
+  family:         'Nunito_400Regular',
+  familyMedium:   'Nunito_500Medium',
+  familySemiBold: 'Nunito_600SemiBold',
+  familyBold:     'Nunito_700Bold',
+
   // Sizes — large for elderly users
   xs: 14,
   sm: 16,
@@ -53,7 +59,7 @@ export const FONTS = {
   xxl: 32,
   display: 40,
 
-  // Weights
+  // Weights (kept for numeric usage)
   regular: '400',
   medium: '500',
   semiBold: '600',
