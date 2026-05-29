@@ -1,21 +1,21 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  ActivityIndicator, Dimensions, Modal, Platform, Alert, TextInput,
+  ActivityIndicator, Dimensions, Alert,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { LineChart } from 'react-native-chart-kit';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
-  subDays, subMonths, subYears, startOfDay, endOfDay, format, parseISO,
+  subDays, subMonths, subYears, startOfDay, endOfDay, format,
 } from 'date-fns';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import {
   COLORS, FONTS, SPACING, RADIUS, SHADOWS,
   getBPColor, getBPStatus, BP_THRESHOLDS,
 } from '../../constants/theme';
 import { t } from '../../localization';
 import { useApp } from '../../store/AppContext';
+import CalendarPicker from '../../components/common/CalendarPicker';
 import Card from '../../components/common/Card';
 import Header from '../../components/common/Header';
 import BPStatusBadge from '../../components/common/BPStatusBadge';
@@ -134,8 +134,7 @@ const HistoryScreen = ({ navigation }) => {
   const [activeFilter, setActiveFilter] = useState('7d');
   const [customStart,  setCustomStart]  = useState(subDays(new Date(), 7));
   const [customEnd,    setCustomEnd]    = useState(new Date());
-  const [showStartPicker, setShowStartPicker] = useState(false);
-  const [showEndPicker,   setShowEndPicker]   = useState(false);
+  const [showCalendar, setShowCalendar] = useState('none'); // 'none' | 'start' | 'end'
   const [stats,    setStats]    = useState(null);
   const [loading,  setLoading]  = useState(true);
   const [exporting, setExporting] = useState(false);
@@ -300,65 +299,23 @@ const HistoryScreen = ({ navigation }) => {
           <Card style={styles.customRangeCard} variant="flat" padding="md">
             <Text style={styles.customRangeTitle}>{t('history.select_range')}</Text>
             <View style={styles.customRangeRow}>
-              {Platform.OS === 'web' ? (
-                // Web: inline text inputs (YYYY-MM-DD)
-                <>
-                  <View style={styles.dateInput}>
-                    <Text style={styles.dateButtonLabel}>{t('history.custom_start')}</Text>
-                    <TextInput
-                      style={styles.webDateTextInput}
-                      value={format(customStart, 'yyyy-MM-dd')}
-                      onChangeText={(v) => {
-                        if (/^\d{4}-\d{2}-\d{2}$/.test(v)) {
-                          const d = parseISO(v);
-                          if (!isNaN(d)) setCustomStart(startOfDay(d));
-                        }
-                      }}
-                      placeholder="YYYY-MM-DD"
-                      keyboardType="numeric"
-                      maxLength={10}
-                    />
-                  </View>
-                  <Text style={styles.dateSeparator}>→</Text>
-                  <View style={styles.dateInput}>
-                    <Text style={styles.dateButtonLabel}>{t('history.custom_end')}</Text>
-                    <TextInput
-                      style={styles.webDateTextInput}
-                      value={format(customEnd, 'yyyy-MM-dd')}
-                      onChangeText={(v) => {
-                        if (/^\d{4}-\d{2}-\d{2}$/.test(v)) {
-                          const d = parseISO(v);
-                          if (!isNaN(d)) setCustomEnd(endOfDay(d));
-                        }
-                      }}
-                      placeholder="YYYY-MM-DD"
-                      keyboardType="numeric"
-                      maxLength={10}
-                    />
-                  </View>
-                </>
-              ) : (
-                // Native: tap buttons to open picker
-                <>
-                  <TouchableOpacity
-                    style={styles.dateButton}
-                    onPress={() => setShowStartPicker(true)}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={styles.dateButtonLabel}>{t('history.custom_start')}</Text>
-                    <Text style={styles.dateButtonValue}>{format(customStart, 'MMM d, yyyy')}</Text>
-                  </TouchableOpacity>
-                  <Text style={styles.dateSeparator}>→</Text>
-                  <TouchableOpacity
-                    style={styles.dateButton}
-                    onPress={() => setShowEndPicker(true)}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={styles.dateButtonLabel}>{t('history.custom_end')}</Text>
-                    <Text style={styles.dateButtonValue}>{format(customEnd, 'MMM d, yyyy')}</Text>
-                  </TouchableOpacity>
-                </>
-              )}
+              <TouchableOpacity
+                style={styles.dateButton}
+                onPress={() => setShowCalendar('start')}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.dateButtonLabel}>{t('history.custom_start')}</Text>
+                <Text style={styles.dateButtonValue}>{format(customStart, 'MMM d, yyyy')}</Text>
+              </TouchableOpacity>
+              <Text style={styles.dateSeparator}>→</Text>
+              <TouchableOpacity
+                style={styles.dateButton}
+                onPress={() => setShowCalendar('end')}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.dateButtonLabel}>{t('history.custom_end')}</Text>
+                <Text style={styles.dateButtonValue}>{format(customEnd, 'MMM d, yyyy')}</Text>
+              </TouchableOpacity>
             </View>
           </Card>
         )}
@@ -539,88 +496,22 @@ const HistoryScreen = ({ navigation }) => {
         <View style={{ height: SPACING.xxl * 2 }} />
       </ScrollView>
 
-      {/* ── iOS date pickers in Modal ── */}
-      {showStartPicker && Platform.OS === 'ios' && (
-        <Modal visible transparent animationType="slide">
-          <TouchableOpacity style={styles.pickerOverlay} activeOpacity={1} onPress={() => setShowStartPicker(false)}>
-            <TouchableOpacity style={styles.pickerSheet} activeOpacity={1}>
-              <View style={styles.pickerHandle} />
-              <View style={styles.pickerHeader}>
-                <TouchableOpacity onPress={() => setShowStartPicker(false)}>
-                  <Text style={styles.pickerCancel}>{t('common.cancel')}</Text>
-                </TouchableOpacity>
-                <Text style={styles.pickerTitle}>{t('history.custom_start')}</Text>
-                <TouchableOpacity onPress={() => setShowStartPicker(false)}>
-                  <Text style={styles.pickerDone}>{t('common.done')}</Text>
-                </TouchableOpacity>
-              </View>
-              <DateTimePicker
-                value={customStart}
-                mode="date"
-                display="inline"
-                onChange={(_, d) => { if (d) setCustomStart(startOfDay(d)); }}
-                maximumDate={new Date()}
-                minimumDate={subYears(new Date(), 2)}
-              />
-            </TouchableOpacity>
-          </TouchableOpacity>
-        </Modal>
-      )}
-
-      {showEndPicker && Platform.OS === 'ios' && (
-        <Modal visible transparent animationType="slide">
-          <TouchableOpacity style={styles.pickerOverlay} activeOpacity={1} onPress={() => setShowEndPicker(false)}>
-            <TouchableOpacity style={styles.pickerSheet} activeOpacity={1}>
-              <View style={styles.pickerHandle} />
-              <View style={styles.pickerHeader}>
-                <TouchableOpacity onPress={() => setShowEndPicker(false)}>
-                  <Text style={styles.pickerCancel}>{t('common.cancel')}</Text>
-                </TouchableOpacity>
-                <Text style={styles.pickerTitle}>{t('history.custom_end')}</Text>
-                <TouchableOpacity onPress={() => setShowEndPicker(false)}>
-                  <Text style={styles.pickerDone}>{t('common.done')}</Text>
-                </TouchableOpacity>
-              </View>
-              <DateTimePicker
-                value={customEnd}
-                mode="date"
-                display="inline"
-                onChange={(_, d) => { if (d) setCustomEnd(endOfDay(d)); }}
-                maximumDate={new Date()}
-                minimumDate={subYears(new Date(), 2)}
-              />
-            </TouchableOpacity>
-          </TouchableOpacity>
-        </Modal>
-      )}
-
-      {/* Android / Web date pickers (native dialog, no Modal needed) */}
-      {showStartPicker && Platform.OS === 'android' && (
-        <DateTimePicker
-          value={customStart}
-          mode="date"
-          display="default"
-          onChange={(e, d) => {
-            setShowStartPicker(false);
-            if (e.type === 'set' && d) setCustomStart(startOfDay(d));
-          }}
-          maximumDate={new Date()}
-          minimumDate={subYears(new Date(), 2)}
-        />
-      )}
-      {showEndPicker && Platform.OS === 'android' && (
-        <DateTimePicker
-          value={customEnd}
-          mode="date"
-          display="default"
-          onChange={(e, d) => {
-            setShowEndPicker(false);
-            if (e.type === 'set' && d) setCustomEnd(endOfDay(d));
-          }}
-          maximumDate={new Date()}
-          minimumDate={subYears(new Date(), 2)}
-        />
-      )}
+      {/* ── Calendar picker — works on web, iOS, and Android ── */}
+      <CalendarPicker
+        visible={showCalendar !== 'none'}
+        title={showCalendar === 'start' ? t('history.custom_start') : t('history.custom_end')}
+        value={showCalendar === 'start' ? customStart : customEnd}
+        onSelect={(date) => {
+          if (showCalendar === 'start') {
+            setCustomStart(startOfDay(date));
+          } else {
+            setCustomEnd(endOfDay(date));
+          }
+        }}
+        onClose={() => setShowCalendar('none')}
+        maxDate={showCalendar === 'start' ? customEnd : new Date()}
+        minDate={showCalendar === 'end'   ? customStart : subYears(new Date(), 2)}
+      />
     </View>
   );
 };
@@ -760,29 +651,6 @@ const styles = StyleSheet.create({
   pdfButtonDisabled: { opacity: 0.6 },
   pdfButtonText: { color: COLORS.white, fontSize: FONTS.md, fontWeight: FONTS.semiBold },
 
-  // Date picker modal (iOS)
-  pickerOverlay: {
-    flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)',
-  },
-  pickerSheet: {
-    backgroundColor: COLORS.white,
-    borderTopLeftRadius: RADIUS.xl,
-    borderTopRightRadius: RADIUS.xl,
-    paddingBottom: SPACING.xxl,
-  },
-  pickerHandle: {
-    width: 40, height: 5, borderRadius: 3, backgroundColor: COLORS.border,
-    alignSelf: 'center', marginTop: SPACING.md, marginBottom: SPACING.sm,
-  },
-  pickerHeader: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingHorizontal: SPACING.lg, paddingBottom: SPACING.md,
-    borderBottomWidth: 1, borderBottomColor: COLORS.border,
-  },
-  pickerTitle:  { fontSize: FONTS.md, fontWeight: FONTS.semiBold, color: COLORS.textPrimary },
-  pickerCancel: { fontSize: FONTS.sm, color: COLORS.textSecondary },
-  pickerDone:   { fontSize: FONTS.sm, fontWeight: FONTS.semiBold, color: COLORS.primary },
-
   // Threshold warning banner below charts
   thresholdWarning: {
     backgroundColor: '#FFF3CD', borderRadius: RADIUS.sm,
@@ -791,14 +659,6 @@ const styles = StyleSheet.create({
   },
   thresholdWarningText: { fontSize: FONTS.xs, color: '#856404', lineHeight: 18 },
 
-  // Web date input
-  dateInput: { flex: 1, alignItems: 'center' },
-  webDateTextInput: {
-    borderWidth: 2, borderColor: COLORS.primary, borderRadius: RADIUS.md,
-    padding: SPACING.sm, fontSize: FONTS.sm, color: COLORS.textPrimary,
-    backgroundColor: COLORS.primaryLight, textAlign: 'center',
-    marginTop: 4, width: '100%',
-  },
 });
 
 export default HistoryScreen;
