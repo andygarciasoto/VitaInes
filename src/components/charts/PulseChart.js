@@ -1,20 +1,21 @@
-import React, { useState, useMemo } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useState, useMemo, useCallback } from 'react';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import Svg, {
   G, Defs, LinearGradient, Stop, Rect,
   Path, Polyline, Line, Circle,
   Text as SvgText,
 } from 'react-native-svg';
 import { format } from 'date-fns';
-import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../../constants/theme';
+import { COLORS, FONTS, SPACING, RADIUS } from '../../constants/theme';
 
 const HEIGHT = 190;
 const PAD    = { top: 20, right: 56, bottom: 50, left: 46 };
+const HIT_RADIUS = 36;
 
 const getPulseColor = (bpm) => {
-  if (bpm >= 100) return COLORS.high;     // tachycardia
-  if (bpm <= 50)  return COLORS.elevated; // bradycardia
-  return COLORS.normal;                   // normal
+  if (bpm >= 100) return COLORS.high;
+  if (bpm <= 50)  return COLORS.elevated;
+  return COLORS.normal;
 };
 
 const sampleDown = (arr, max = 26) => {
@@ -24,9 +25,9 @@ const sampleDown = (arr, max = 26) => {
 };
 
 export default function PulseChart({ readings, width, language = 'en' }) {
-  const [active, setActive] = useState(null);
+  const [active, setActive] = useState(null); // { reading, x, y }
 
-  const derived = useMemo(() => {
+  const computed = useMemo(() => {
     if (!readings) return null;
     const withPulse = readings.filter(r => r.pulse > 0);
     if (withPulse.length < 2) return null;
@@ -43,10 +44,10 @@ export default function PulseChart({ readings, width, language = 'en' }) {
     const maxV   = Math.max(...pulses, 105) + 12;
     const range  = maxV - minV || 1;
 
-    const toX = i  => PAD.left + (n > 1 ? (i / (n - 1)) * iW : iW / 2);
+    const toX = i   => PAD.left + (n > 1 ? (i / (n - 1)) * iW : iW / 2);
     const toY = val => PAD.top  + iH - ((val - minV) / range) * iH;
 
-    const y100   = toY(100);
+    const y100    = toY(100);
     const show100 = y100 >= PAD.top && y100 <= PAD.top + iH;
 
     const linePath = sampled.map((r, i) => `${toX(i).toFixed(1)},${toY(r.pulse).toFixed(1)}`).join(' ');
@@ -71,7 +72,34 @@ export default function PulseChart({ readings, width, language = 'en' }) {
     return { sampled, n, toX, toY, linePath, areaPath, y100, show100, yTicks, xLabels, iW, iH };
   }, [readings, width]);
 
-  if (!derived) {
+  const findNearest = useCallback((touchX, touchY) => {
+    if (!computed) return null;
+    const { sampled, toX, toY } = computed;
+    let best = null, bestDist = HIT_RADIUS;
+    sampled.forEach((r, i) => {
+      const px = toX(i);
+      const py = toY(r.pulse);
+      const d  = Math.hypot(touchX - px, touchY - py);
+      if (d < bestDist) {
+        bestDist = d;
+        best = { reading: r, x: px, y: py };
+      }
+    });
+    return best;
+  }, [computed]);
+
+  const handlePress = useCallback((evt) => {
+    const x = evt.nativeEvent.locationX ?? evt.nativeEvent.offsetX ?? 0;
+    const y = evt.nativeEvent.locationY ?? evt.nativeEvent.offsetY ?? 0;
+    const nearest = findNearest(x, y);
+    setActive(prev => {
+      if (!nearest) return null;
+      if (prev?.reading === nearest.reading) return null;
+      return nearest;
+    });
+  }, [findNearest]);
+
+  if (!computed) {
     return (
       <View style={[styles.placeholder, { width, height: HEIGHT }]}>
         <Text style={styles.placeholderText}>Need at least 2 pulse readings</Text>
@@ -79,7 +107,7 @@ export default function PulseChart({ readings, width, language = 'en' }) {
     );
   }
 
-  const { sampled, toX, toY, linePath, areaPath, y100, show100, yTicks, xLabels, iW, iH } = derived;
+  const { sampled, toX, toY, linePath, areaPath, y100, show100, yTicks, xLabels, iW, iH } = computed;
 
   const TT_W = 148, TT_H = 96;
   let ttLeft = 0, ttTop = 0;
@@ -89,12 +117,14 @@ export default function PulseChart({ readings, width, language = 'en' }) {
     if (ttTop < 0) ttTop = active.y + 18;
   }
 
-  const dismiss = () => setActive(null);
-
   return (
     <View style={{ width }}>
-      <View style={{ position: 'relative' }}>
-        <Svg width={width} height={HEIGHT}>
+
+      {/* ── Chart area: SVG visuals + Pressable overlay ──────────────────── */}
+      <View style={{ position: 'relative', width, height: HEIGHT }}>
+
+        {/* Pure-visual SVG — no touch handlers anywhere inside */}
+        <Svg width={width} height={HEIGHT} style={StyleSheet.absoluteFill}>
           <Defs>
             <LinearGradient id="pulseAreaGrad" x1="0" y1="0" x2="0" y2="1">
               <Stop offset="0%"   stopColor="#F4A7B9" stopOpacity="0.28" />
@@ -103,11 +133,7 @@ export default function PulseChart({ readings, width, language = 'en' }) {
           </Defs>
 
           {/* Background */}
-          <Rect
-            x={PAD.left} y={PAD.top}
-            width={iW} height={iH}
-            fill="#FFF9FB" rx="6"
-          />
+          <Rect x={PAD.left} y={PAD.top} width={iW} height={iH} fill="#FFF9FB" rx="6" />
 
           {/* Elevated zone (above 100 bpm) */}
           {show100 && (
@@ -118,7 +144,7 @@ export default function PulseChart({ readings, width, language = 'en' }) {
             />
           )}
 
-          {/* Grid lines + Y labels */}
+          {/* Grid + Y labels */}
           {yTicks.map(v => {
             const gy = toY(v);
             if (gy < PAD.top || gy > PAD.top + iH) return null;
@@ -174,52 +200,44 @@ export default function PulseChart({ readings, width, language = 'en' }) {
             strokeLinejoin="round" strokeLinecap="round"
           />
 
-          {/* Active indicator */}
+          {/* Active vertical indicator */}
           {active && (
             <Line
               x1={active.x.toFixed(1)} y1={PAD.top}
               x2={active.x.toFixed(1)} y2={PAD.top + iH}
-              stroke={COLORS.primary} strokeWidth="1" strokeDasharray="3,3" opacity="0.7"
+              stroke={COLORS.primary} strokeWidth="1.5" strokeDasharray="4,3" opacity="0.6"
             />
           )}
 
-          {/* Dismiss rect — drawn before dots so dots are on top */}
-          <Rect
-            x={PAD.left} y={PAD.top} width={iW} height={iH}
-            fill="transparent" onPress={dismiss}
-          />
-
-          {/* Interactive dots — drawn last (topmost z-order) */}
+          {/* Dots — colored by pulse status; active dot gets halo */}
           {sampled.map((r, i) => {
             const col = getPulseColor(r.pulse);
-            const cx  = toX(i);
-            const cy  = toY(r.pulse);
+            const cx  = toX(i).toFixed(1);
+            const cy  = toY(r.pulse).toFixed(1);
             const sel = active?.reading === r;
             return (
-              <G
-                key={`pdot-${i}`}
-                onPress={() => setActive(sel ? null : { reading: r, x: cx, y: cy })}
-              >
-                <Circle cx={cx.toFixed(1)} cy={cy.toFixed(1)} r="18" fill="transparent" />
-                {sel && (
-                  <Circle cx={cx.toFixed(1)} cy={cy.toFixed(1)} r="11" fill={col} opacity="0.2" />
-                )}
-                <Circle
-                  cx={cx.toFixed(1)} cy={cy.toFixed(1)}
-                  r={sel ? '8' : '6'} fill={col} stroke="#fff" strokeWidth="2"
-                />
+              <G key={`pdot-${i}`}>
+                {sel && <Circle cx={cx} cy={cy} r="12" fill={col} opacity="0.2" />}
+                <Circle cx={cx} cy={cy} r={sel ? '8' : '6'} fill={col} stroke="#fff" strokeWidth="2" />
               </G>
             );
           })}
         </Svg>
 
-        {/* Tooltip */}
+        {/* Pressable overlay — captures all taps over the SVG */}
+        <Pressable style={StyleSheet.absoluteFill} onPress={handlePress} />
+
+        {/* Tooltip — pointerEvents none so taps pass through to Pressable */}
         {active && (() => {
           const r   = active.reading;
           const col = getPulseColor(r.pulse);
           const elevated = r.pulse >= 100;
+          const brady    = r.pulse <= 50;
           return (
-            <View style={[styles.tooltip, { left: ttLeft, top: ttTop }]} pointerEvents="none">
+            <View
+              style={[styles.tooltip, { left: ttLeft, top: ttTop }]}
+              pointerEvents="none"
+            >
               <Text style={styles.ttDate}>{format(new Date(r.timestamp), 'EEE, MMM d, yyyy')}</Text>
               <Text style={styles.ttTime}>{format(new Date(r.timestamp), 'h:mm a')}</Text>
               <View style={styles.ttDivider} />
@@ -227,9 +245,11 @@ export default function PulseChart({ readings, width, language = 'en' }) {
                 {r.pulse}
                 <Text style={styles.ttUnit}> bpm</Text>
               </Text>
-              {elevated && (
+              {(elevated || brady) && (
                 <View style={[styles.ttBadge, { backgroundColor: col + '22', borderColor: col + '44' }]}>
-                  <Text style={[styles.ttBadgeText, { color: col }]}>Elevated</Text>
+                  <Text style={[styles.ttBadgeText, { color: col }]}>
+                    {elevated ? 'Elevated' : 'Low'}
+                  </Text>
                 </View>
               )}
             </View>
@@ -237,7 +257,7 @@ export default function PulseChart({ readings, width, language = 'en' }) {
         })()}
       </View>
 
-      {/* Legend */}
+      {/* ── Legend ─────────────────────────────────────────────────────────── */}
       <View style={styles.legend}>
         <View style={styles.legendItem}>
           <View style={[styles.legendLine, { backgroundColor: '#E8618C' }]} />
@@ -265,22 +285,27 @@ const styles = StyleSheet.create({
 
   tooltip: {
     position: 'absolute',
-    backgroundColor: COLORS.white,
+    backgroundColor: '#FFFFFF',
     borderRadius: RADIUS.md,
-    padding: SPACING.sm + 2,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm + 2,
     width: 148,
-    ...SHADOWS.md,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.14,
+    shadowRadius: 12,
+    elevation: 8,
     borderWidth: 1,
     borderColor: COLORS.borderLight,
-    zIndex: 100,
+    zIndex: 999,
   },
-  ttDate:  { fontSize: 12, color: COLORS.textSecondary, fontWeight: '500' },
-  ttTime:  { fontSize: 11, color: COLORS.textLight, marginTop: 1 },
-  ttDivider: { height: 1, backgroundColor: COLORS.borderLight, marginVertical: 6 },
+  ttDate:  { fontSize: 12, color: COLORS.textSecondary, fontWeight: '600' },
+  ttTime:  { fontSize: 11, color: COLORS.textLight, marginTop: 2 },
+  ttDivider: { height: 1, backgroundColor: COLORS.borderLight, marginVertical: 7 },
   ttPulse: { fontSize: 22, fontWeight: '700' },
   ttUnit:  { fontSize: 12, fontWeight: '400', color: COLORS.textSecondary },
   ttBadge: {
-    alignSelf: 'flex-start', marginTop: 6,
+    alignSelf: 'flex-start', marginTop: 7,
     paddingHorizontal: 8, paddingVertical: 3,
     borderRadius: RADIUS.full, borderWidth: 1,
   },
@@ -292,10 +317,7 @@ const styles = StyleSheet.create({
   },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   legendLine: { width: 16, height: 3, borderRadius: 2 },
-  legendDash: {
-    width: 16, height: 0,
-    borderTopWidth: 2, borderStyle: 'dashed',
-  },
+  legendDash: { width: 16, height: 0, borderTopWidth: 2, borderStyle: 'dashed' },
   legendText: { fontSize: 12, color: COLORS.textSecondary },
 
   hint: {
