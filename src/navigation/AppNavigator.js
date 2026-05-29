@@ -4,7 +4,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useApp } from '../store/AppContext';
-import { COLORS, FONTS, SPACING } from '../constants/theme';
+import { COLORS, FONTS } from '../constants/theme';
 import { t } from '../localization';
 import ViLogo from '../components/common/ViLogo';
 

@@ -127,10 +127,11 @@ export const AppProvider = ({ children }) => {
       }
     });
 
-    // If Firebase never fires (offline / init failure), unblock navigation after 6 s
+    // If Firebase never fires (offline / init failure), unblock navigation after 3 s
     failsafe = setTimeout(() => {
+      console.warn('[AppContext] auth timeout — unblocking navigation');
       dispatch({ type: 'SET_AUTH_LOADING', payload: false });
-    }, 6000);
+    }, 3000);
 
     return () => {
       clearTimeout(failsafe);
