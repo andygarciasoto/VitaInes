@@ -303,6 +303,7 @@ const buildHTML = ({ readings, stats, medications = [], recommendations = [], pr
     padding-bottom: 8px;
     margin: 28px 0 16px 0;
     page-break-after: avoid;
+    break-after: avoid;
   }
   table { width: 100%; border-collapse: collapse; }
   th {
@@ -313,7 +314,17 @@ const buildHTML = ({ readings, stats, medications = [], recommendations = [], pr
     font-weight: 600;
     font-size: 12px;
   }
+  tr { page-break-inside: avoid; break-inside: avoid; }
+  svg { page-break-inside: avoid; break-inside: avoid; display: block; max-width: 100%; }
+  .chart-section { page-break-inside: avoid; break-inside: avoid; }
   .page-break { page-break-before: always; break-before: page; padding-top: 0; }
+  @media print {
+    body {
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+      color-adjust: exact;
+    }
+  }
 </style>
 </head>
 <body>
@@ -399,7 +410,7 @@ const buildHTML = ({ readings, stats, medications = [], recommendations = [], pr
 
 <!-- ══ BP TREND CHART ════════════════════════════════════════ -->
 <h2>&#128200; ${L.bpTrend}</h2>
-<div style="background:#f9fbf9;border-radius:10px;padding:16px;margin-bottom:10px;overflow:hidden;">
+<div class="chart-section" style="background:#f9fbf9;border-radius:10px;padding:16px;margin-bottom:10px;">
   ${buildBPChart(readings, L)}
   <table style="width:100%;margin-top:12px;">
     <tr>
@@ -413,7 +424,7 @@ const buildHTML = ({ readings, stats, medications = [], recommendations = [], pr
         <span style="display:inline-block;width:18px;height:2px;background:#4CAF93;vertical-align:middle;margin-right:5px;"></span>${L.normalLine}
       </td>
       <td style="padding:3px 8px;font-size:11px;color:#555;">
-        <span style="display:inline-block;width:18px;height:2px;background:#E74C3C;vertical-align:middle;margin-right:5px;"></span>${L.highLine.split('&#')[0].split(' —')[0]}
+        <span style="display:inline-block;width:18px;height:2px;background:#E74C3C;vertical-align:middle;margin-right:5px;"></span>High Alert: 140 mmHg
       </td>
     </tr>
   </table>
@@ -425,7 +436,7 @@ const buildHTML = ({ readings, stats, medications = [], recommendations = [], pr
 ${hasPulseChart ? `
 <!-- ══ PULSE TREND CHART ═════════════════════════════════════ -->
 <h2>&#9829; ${L.pulseTrend}</h2>
-<div style="background:#fff9fb;border-radius:10px;padding:16px;margin-bottom:10px;overflow:hidden;">
+<div class="chart-section" style="background:#fff9fb;border-radius:10px;padding:16px;margin-bottom:10px;">
   ${buildPulseChart(readings, L)}
   <table style="width:100%;margin-top:12px;">
     <tr>
@@ -497,10 +508,38 @@ export const exportPDFReport = async (opts) => {
   const html = buildHTML(opts);
 
   if (Platform.OS === 'web') {
-    await Print.printAsync({ html });
+    // Open a real browser window so the full document renders before print —
+    // expo-print's iframe approach clips to the iframe viewport height.
+    const win = typeof window !== 'undefined' ? window.open('', '_blank') : null;
+    if (win) {
+      win.document.open();
+      win.document.write(html);
+      win.document.close();
+      // Wait for all content (SVGs, fonts) to finish rendering before printing
+      win.addEventListener('load', () => {
+        setTimeout(() => { win.focus(); win.print(); }, 400);
+      });
+      // Fallback: if 'load' already fired (document.write is synchronous)
+      if (win.document.readyState === 'complete') {
+        setTimeout(() => { win.focus(); win.print(); }, 400);
+      }
+    } else {
+      // Popup blocked — download the report as a self-contained HTML file
+      const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+      const url  = URL.createObjectURL(blob);
+      const a    = Object.assign(document.createElement('a'), {
+        href:     url,
+        download: `vitaines-report-${format(new Date(), 'yyyy-MM-dd')}.html`,
+      });
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
     return;
   }
 
+  // Native (iOS / Android): generate a real PDF file and share it
   const { uri } = await Print.printToFileAsync({ html, base64: false });
   const canShare = await Sharing.isAvailableAsync();
   if (canShare) {
