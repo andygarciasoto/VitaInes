@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>VitaInes — App Store Previews</title>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', sans-serif;
+      background: linear-gradient(135deg, #0f1923 0%, #1a2a3a 50%, #0d1f2d 100%);
+      min-height: 100vh;
+      padding: 60px 40px 80px;
+      color: #fff;
+    }
+
+    /* ── Page header ── */
+    .page-header {
+      text-align: center;
+      margin-bottom: 64px;
+    }
+    .page-header h1 {
+      font-size: 52px;
+      font-weight: 800;
+      letter-spacing: -2px;
+      background: linear-gradient(135deg, #8BB87A, #6B9FC0, #F4A0B0);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 12px;
+    }
+    .page-header p {
+      font-size: 18px;
+      color: rgba(255,255,255,0.45);
+      letter-spacing: 0.5px;
+    }
+
+    /* ── Screenshot grid ── */
+    .screenshots-row {
+      display: flex;
+      gap: 52px;
+      justify-content: center;
+      align-items: flex-start;
+    }
+
+    .screenshot-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+      width: 296px;
+    }
+
+    .feature-badge {
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 100px;
+      padding: 7px 18px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1.8px;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.75);
+    }
+
+    .screenshot-headline {
+      font-size: 24px;
+      font-weight: 800;
+      text-align: center;
+      color: #fff;
+      line-height: 1.25;
+      letter-spacing: -0.5px;
+    }
+
+    .screenshot-sub {
+      font-size: 13px;
+      text-align: center;
+      color: rgba(255,255,255,0.45);
+      line-height: 1.6;
+    }
+
+    /* ── iPhone frame ── */
+    .phone {
+      width: 296px;
+      height: 641px;
+      background: #0a0a0a;
+      border-radius: 48px;
+      border: 7px solid #222;
+      box-shadow:
+        0 0 0 1px #3a3a3a,
+        0 40px 100px rgba(0,0,0,0.6),
+        inset 0 0 0 1px #111;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Dynamic Island */
+    .phone::before {
+      content: '';
+      position: absolute;
+      top: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 92px;
+      height: 30px;
+      background: #000;
+      border-radius: 22px;
+      z-index: 200;
+    }
+
+    /* Home indicator */
+    .phone::after {
+      content: '';
+      position: absolute;
+      bottom: 9px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 108px;
+      height: 5px;
+      background: rgba(255,255,255,0.35);
+      border-radius: 3px;
+      z-index: 200;
+    }
+
+    /* ── Shared screen atoms ── */
+    .screen { width: 100%; height: 100%; overflow: hidden; position: relative; }
+
+    .status-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 22px 4px;
+      font-size: 11px;
+      font-weight: 700;
+      color: #1A2A3A;
+    }
+    .s-time { font-size: 14px; font-weight: 800; }
+    .s-icons { font-size: 11px; opacity: 0.7; letter-spacing: 1px; }
+
+    .nav-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 2px 18px 10px;
+    }
+    .nav-title { font-size: 18px; font-weight: 800; color: #1A2A3A; }
+    .nav-sub { font-size: 11px; color: #5A7080; margin-top: 1px; }
+
+    .avatar {
+      width: 34px; height: 34px;
+      background: linear-gradient(135deg, #4CAF93, #6B9FC0);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; color: #fff; font-weight: 800;
+    }
+
+    /* Generic card */
+    .card {
+      background: #fff;
+      border-radius: 20px;
+      margin: 0 14px 10px;
+      padding: 14px 16px;
+      box-shadow: 0 2px 16px rgba(0,0,0,0.07);
+    }
+
+    /* Tab bar */
+    .tab-bar {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 62px;
+      background: rgba(255,255,255,0.97);
+      backdrop-filter: blur(12px);
+      border-top: 1px solid rgba(0,0,0,0.06);
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+      padding: 0 8px 10px;
+      z-index: 100;
+    }
+    .tab-item {
+      display: flex; flex-direction: column;
+      align-items: center; gap: 2px; flex: 1;
+    }
+    .tab-icon-wrap {
+      width: 40px; height: 28px;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 11px;
+    }
+    .tab-item.active .tab-icon-wrap { background: rgba(76,175,147,0.13); }
+    .tab-icon { font-size: 17px; }
+    .tab-lbl { font-size: 9px; font-weight: 600; color: #aaa; }
+    .tab-item.active .tab-lbl { color: #4CAF93; }
+
+
+    /* =====================================================
+       SCREEN 1 – HOME DASHBOARD
+    ===================================================== */
+    .screen-home { background: linear-gradient(180deg, #E4F2EC 0%, #EBF5F9 45%, #F3F8F8 100%); }
+
+    .bp-hero {
+      background: linear-gradient(135deg, #4CAF93 0%, #3A9A7E 100%);
+      border-radius: 22px;
+      margin: 0 14px 10px;
+      padding: 18px 20px 16px;
+      box-shadow: 0 6px 24px rgba(76,175,147,0.38);
+      color: #fff;
+      position: relative;
+      overflow: hidden;
+    }
+    .bp-hero::after {
+      content: '';
+      position: absolute;
+      top: -30px; right: -30px;
+      width: 120px; height: 120px;
+      background: rgba(255,255,255,0.07);
+      border-radius: 50%;
+    }
+    .bp-tag { font-size: 10px; font-weight: 700; opacity: 0.75; letter-spacing: 1.2px; text-transform: uppercase; }
+    .bp-nums { font-size: 50px; font-weight: 900; letter-spacing: -2px; line-height: 1; margin: 6px 0 2px; }
+    .bp-slash { font-size: 30px; opacity: 0.65; font-weight: 600; vertical-align: 4px; }
+    .bp-unit { font-size: 12px; opacity: 0.75; margin-bottom: 10px; }
+    .bp-status-badge {
+      display: inline-flex; align-items: center; gap: 5px;
+      background: rgba(255,255,255,0.22);
+      border-radius: 100px;
+      padding: 5px 12px;
+      font-size: 11px; font-weight: 800; letter-spacing: 0.3px;
+    }
+    .bp-meta { font-size: 10px; opacity: 0.65; margin-top: 8px; }
+
+    .chips-row { display: flex; gap: 8px; margin: 0 14px 10px; }
+    .chip {
+      flex: 1; background: #fff; border-radius: 16px;
+      padding: 10px 8px; text-align: center;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+    }
+    .chip-icon { font-size: 17px; }
+    .chip-val { font-size: 15px; font-weight: 900; color: #1A2A3A; margin-top: 1px; }
+    .chip-lbl { font-size: 9px; color: #7A8FA0; font-weight: 600; margin-top: 1px; }
+
+    .stats-row { display: flex; gap: 8px; margin: 0 14px 10px; }
+    .stat-box {
+      flex: 1; background: #fff; border-radius: 16px;
+      padding: 10px 8px; text-align: center;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+    }
+    .stat-lbl { font-size: 9px; color: #7A8FA0; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+    .stat-val { font-size: 18px; font-weight: 900; color: #1A2A3A; line-height: 1.2; margin-top: 2px; }
+    .stat-unit { font-size: 9px; color: #7A8FA0; margin-top: 1px; }
+
+    .insight-strip {
+      background: #fff;
+      border-left: 3.5px solid #4CAF93;
+      border-radius: 14px;
+      margin: 0 14px 10px;
+      padding: 11px 13px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+    }
+    .ins-head { display: flex; align-items: center; gap: 5px; margin-bottom: 4px; }
+    .ins-tag { font-size: 9px; font-weight: 700; color: #4CAF93; text-transform: uppercase; letter-spacing: 0.8px; }
+    .ins-text { font-size: 11px; color: #5A7080; line-height: 1.55; }
+
+    .add-btn {
+      margin: 0 14px;
+      background: linear-gradient(135deg, #4CAF93, #3A9A7E);
+      border-radius: 16px; padding: 13px;
+      text-align: center; color: #fff;
+      font-size: 13px; font-weight: 800;
+      box-shadow: 0 5px 18px rgba(76,175,147,0.35);
+      letter-spacing: 0.2px;
+    }
+
+
+    /* =====================================================
+       SCREEN 2 – HISTORY & CHARTS
+    ===================================================== */
+    .screen-history { background: linear-gradient(180deg, #E8F0F5 0%, #EAF5F0 35%, #F3F8F8 100%); }
+
+    .time-filters { display: flex; gap: 6px; padding: 0 14px; margin-bottom: 10px; }
+    .tf {
+      padding: 5px 11px; border-radius: 100px;
+      font-size: 10px; font-weight: 700;
+      background: rgba(255,255,255,0.75);
+      color: #5A7080;
+      border: 1px solid rgba(0,0,0,0.08);
+    }
+    .tf.active { background: #4CAF93; color: #fff; border-color: transparent; }
+
+    .chart-card {
+      background: #fff; border-radius: 20px;
+      margin: 0 14px 10px; padding: 13px 14px 10px;
+      box-shadow: 0 2px 16px rgba(0,0,0,0.07);
+    }
+    .chart-title { font-size: 12px; font-weight: 800; color: #1A2A3A; }
+    .chart-sub { font-size: 9px; color: #7A8FA0; margin-bottom: 10px; }
+
+    .status-filter-row { display: flex; gap: 6px; padding: 0 14px; margin-bottom: 10px; }
+    .sf {
+      padding: 4px 10px; border-radius: 100px;
+      font-size: 9px; font-weight: 800; border: 1.5px solid transparent;
+    }
+    .sf.all  { background: rgba(90,112,128,0.10); color: #5A7080; border-color: #8A9FAE; }
+    .sf.norm { background: rgba(76,175,147,0.12); color: #4CAF93; border-color: #4CAF93; }
+    .sf.elev { background: rgba(240,166,35,0.12); color: #D4920E; border-color: #D4920E; }
+    .sf.high { background: rgba(224,90,90,0.12); color: #E05A5A; border-color: #E05A5A; }
+
+    .summary-row { display: flex; gap: 7px; margin: 0 14px 10px; }
+    .sum-box {
+      flex: 1; background: #fff; border-radius: 14px;
+      padding: 9px 7px; text-align: center;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+    }
+    .sum-lbl { font-size: 8px; color: #7A8FA0; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+    .sum-val { font-size: 15px; font-weight: 900; color: #1A2A3A; line-height: 1.3; margin-top: 2px; }
+    .sum-unit { font-size: 8px; color: #7A8FA0; }
+
+    .reading-row {
+      background: #fff; border-radius: 14px;
+      margin: 0 14px 7px; padding: 10px 14px;
+      display: flex; justify-content: space-between; align-items: center;
+      box-shadow: 0 1px 8px rgba(0,0,0,0.05);
+    }
+    .r-bp { font-size: 17px; font-weight: 900; color: #1A2A3A; }
+    .r-meta { font-size: 9px; color: #7A8FA0; margin-top: 1px; }
+    .r-badge { font-size: 9px; font-weight: 700; padding: 3px 9px; border-radius: 100px; }
+    .rb-norm { background: rgba(76,175,147,0.14); color: #4CAF93; }
+    .rb-elev { background: rgba(240,166,35,0.14); color: #D4920E; }
+
+
+    /* =====================================================
+       SCREEN 3 – MEDICATIONS & AI INSIGHTS
+    ===================================================== */
+    .screen-meds { background: linear-gradient(180deg, #EBF2F7 0%, #EAF5F0 50%, #F3F8F8 100%); }
+
+    .sec-head {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 4px 18px 8px;
+    }
+    .sec-title { font-size: 13px; font-weight: 800; color: #1A2A3A; }
+    .sec-action { font-size: 11px; color: #4CAF93; font-weight: 700; }
+
+    .med-card {
+      background: #fff; border-radius: 18px;
+      margin: 0 14px 8px; padding: 12px 14px;
+      display: flex; align-items: center; gap: 10px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+    }
+    .med-icon {
+      width: 36px; height: 36px; border-radius: 11px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 17px; flex-shrink: 0;
+    }
+    .med-info { flex: 1; }
+    .med-name { font-size: 13px; font-weight: 800; color: #1A2A3A; }
+    .med-dose { font-size: 10px; color: #7A8FA0; margin-top: 1px; }
+    .med-time { font-size: 10px; color: #6B9FC0; font-weight: 700; margin-top: 2px; }
+    .med-dot { width: 9px; height: 9px; border-radius: 50%; background: #4CAF93; flex-shrink: 0; }
+    .med-dot.paused { background: #ccc; }
+
+    .divider { height: 1px; background: rgba(0,0,0,0.06); margin: 4px 14px 10px; }
+
+    .ai-pill {
+      background: linear-gradient(135deg, #EBF5F1, #E4EEF5);
+      border-radius: 18px; margin: 0 14px 8px; padding: 13px 14px;
+      border: 1px solid rgba(76,175,147,0.18);
+    }
+    .ai-pill-head { display: flex; align-items: center; gap: 7px; margin-bottom: 6px; }
+    .ai-badge {
+      background: linear-gradient(135deg, #4CAF93, #6B9FC0);
+      color: #fff; font-size: 8px; font-weight: 900;
+      padding: 2px 7px; border-radius: 100px; letter-spacing: 0.5px;
+    }
+    .ai-title { font-size: 12px; font-weight: 800; color: #1A2A3A; }
+    .ai-text { font-size: 11px; color: #5A7080; line-height: 1.6; }
+
+  </style>
+</head>
+<body>
+
+  <div class="page-header">
+    <h1>VitaInes</h1>
+    <p>App Store Preview  ·  iPhone  ·  iOS</p>
+  </div>
+
+  <div class="screenshots-row">
+
+
+    <!-- ═══════════════════════════════════════════
+         SCREENSHOT 1 — HOME DASHBOARD
+    ═══════════════════════════════════════════ -->
+    <div class="screenshot-wrap">
+      <div class="feature-badge">Dashboard</div>
+      <div class="screenshot-headline">Know Your Numbers<br>at a Glance</div>
+
+      <div class="phone">
+        <div class="screen screen-home">
+
+          <div class="status-bar">
+            <span class="s-time">9:41</span>
+            <span class="s-icons">▲ ⊙ ▮▮▮</span>
+          </div>
+
+          <div class="nav-bar">
+            <div>
+              <div class="nav-sub">Good morning</div>
+              <div class="nav-title">Andy 👋</div>
+            </div>
+            <div class="avatar">A</div>
+          </div>
+
+          <!-- BP hero card -->
+          <div class="bp-hero">
+            <div class="bp-tag">Latest Reading</div>
+            <div class="bp-nums">118<span class="bp-slash">/</span>76</div>
+            <div class="bp-unit">mmHg</div>
+            <div class="bp-status-badge">✓ &nbsp;NORMAL</div>
+            <div class="bp-meta">❤️&nbsp; 72 bpm &nbsp;·&nbsp; Today, 8:30 AM</div>
+          </div>
+
+          <!-- Quick chips -->
+          <div class="chips-row">
+            <div class="chip">
+              <div class="chip-icon">🔥</div>
+              <div class="chip-val">7</div>
+              <div class="chip-lbl">Day Streak</div>
+            </div>
+            <div class="chip">
+              <div class="chip-icon">💊</div>
+              <div class="chip-val">2</div>
+              <div class="chip-lbl">Meds Today</div>
+            </div>
+            <div class="chip">
+              <div class="chip-icon">📊</div>
+              <div class="chip-val">14</div>
+              <div class="chip-lbl">This Month</div>
+            </div>
+          </div>
+
+          <!-- Stats -->
+          <div class="stats-row">
+            <div class="stat-box">
+              <div class="stat-lbl">7-Day Avg</div>
+              <div class="stat-val">116<span style="font-size:11px">/74</span></div>
+              <div class="stat-unit">mmHg</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-lbl">Avg Pulse</div>
+              <div class="stat-val">71</div>
+              <div class="stat-unit">bpm</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-lbl">Trend</div>
+              <div class="stat-val" style="color:#4CAF93;font-size:13px">Stable</div>
+              <div class="stat-unit">↔ Normal</div>
+            </div>
+          </div>
+
+          <!-- Insight -->
+          <div class="insight-strip">
+            <div class="ins-head">
+              <span>🤖</span>
+              <span class="ins-tag">AI Health Insight</span>
+            </div>
+            <div class="ins-text">"Your blood pressure has been stable this week. A 20-min walk today can help maintain this trend."</div>
+          </div>
+
+          <!-- CTA button -->
+          <div class="add-btn">＋ &nbsp;Add New Reading</div>
+
+          <!-- Tab bar -->
+          <div class="tab-bar">
+            <div class="tab-item active">
+              <div class="tab-icon-wrap"><span class="tab-icon">🏠</span></div>
+              <span class="tab-lbl" style="color:#4CAF93">Home</span>
+            </div>
+            <div class="tab-item">
+              <div class="tab-icon-wrap"><span class="tab-icon">📈</span></div>
+              <span class="tab-lbl">Readings</span>
+            </div>
+            <div class="tab-item">
+              <div class="tab-icon-wrap"><span class="tab-icon">💊</span></div>
+              <span class="tab-lbl">Meds</span>
+            </div>
+            <div class="tab-item">
+              <div class="tab-icon-wrap"><span class="tab-icon">📊</span></div>
+              <span class="tab-lbl">History</span>
+            </div>
+            <div class="tab-item">
+              <div class="tab-icon-wrap"><span class="tab-icon">👤</span></div>
+              <span class="tab-lbl">Profile</span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="screenshot-sub">Real-time BP tracking with instant<br>status, streaks &amp; AI health insights</div>
+    </div>
+
+
+    <!-- ═══════════════════════════════════════════
+         SCREENSHOT 2 — HISTORY & CHARTS
+    ═══════════════════════════════════════════ -->
+    <div class="screenshot-wrap">
+      <div class="feature-badge">Charts &amp; Trends</div>
+      <div class="screenshot-headline">Visualize Your<br>Health Journey</div>
+
+      <div class="phone">
+        <div class="screen screen-history">
+
+          <div class="status-bar">
+            <span class="s-time">9:41</span>
+            <span class="s-icons">▲ ⊙ ▮▮▮</span>
+          </div>
+
+          <div class="nav-bar">
+            <div class="nav-title">History</div>
+            <span style="font-size:17px;color:#5A7080">⊕</span>
+          </div>
+
+          <!-- Time range filters -->
+          <div class="time-filters">
+            <div class="tf">Today</div>
+            <div class="tf active">7 Days</div>
+            <div class="tf">30 Days</div>
+            <div class="tf">3 Mo</div>
+            <div class="tf">1 Yr</div>
+          </div>
+
+          <!-- Chart card with real SVG -->
+          <div class="chart-card">
+            <div class="chart-title">Blood Pressure Trend</div>
+            <div class="chart-sub">Red · Systolic &nbsp;·&nbsp; Blue · Diastolic &nbsp;·&nbsp; Dashes · Limits</div>
+
+            <svg width="268" height="112" viewBox="0 0 268 112" style="overflow:visible;display:block">
+              <!-- Background grid -->
+              <line x1="0" y1="22" x2="268" y2="22" stroke="#f0f0f0" stroke-width="1"/>
+              <line x1="0" y1="50" x2="268" y2="50" stroke="#f0f0f0" stroke-width="1"/>
+              <line x1="0" y1="78" x2="268" y2="78" stroke="#f0f0f0" stroke-width="1"/>
+
+              <!-- Threshold: High 140 (y≈22) -->
+              <line x1="0" y1="22" x2="250" y2="22" stroke="#E05A5A" stroke-width="1.2" stroke-dasharray="4,4" opacity="0.55"/>
+              <text x="252" y="26" fill="#E05A5A" font-size="7.5" font-weight="700" opacity="0.75">140</text>
+
+              <!-- Threshold: Normal 120 (y≈50) -->
+              <line x1="0" y1="50" x2="250" y2="50" stroke="#4CAF93" stroke-width="1.2" stroke-dasharray="4,4" opacity="0.55"/>
+              <text x="252" y="54" fill="#4CAF93" font-size="7.5" font-weight="700" opacity="0.75">120</text>
+
+              <!-- Systolic area fill -->
+              <!-- y = 112 - (val-60)/100*112; 118→56.2, 122→51.5, 120→53.8, 115→59.8, 118→56.2, 125→49.0, 118→56.2 -->
+              <path d="M0,56.2 L44.7,51.5 L89.3,53.8 L134,59.8 L178.7,56.2 L223.3,49 L268,56.2 L268,112 L0,112 Z"
+                    fill="rgba(224,90,90,0.07)"/>
+
+              <!-- Systolic line -->
+              <polyline
+                points="0,56.2 44.7,51.5 89.3,53.8 134,59.8 178.7,56.2 223.3,49 268,56.2"
+                fill="none" stroke="#E05A5A" stroke-width="2.8"
+                stroke-linecap="round" stroke-linejoin="round"/>
+              <circle cx="0"     cy="56.2" r="3.5" fill="#E05A5A"/>
+              <circle cx="44.7"  cy="51.5" r="3.5" fill="#E05A5A"/>
+              <circle cx="89.3"  cy="53.8" r="3.5" fill="#E05A5A"/>
+              <circle cx="134"   cy="59.8" r="3.5" fill="#E05A5A"/>
+              <circle cx="178.7" cy="56.2" r="3.5" fill="#E05A5A"/>
+              <circle cx="223.3" cy="49"   r="4"   fill="#E05A5A" stroke="#fff" stroke-width="1.5"/>
+              <circle cx="268"   cy="56.2" r="3.5" fill="#E05A5A"/>
+
+              <!-- Diastolic line -->
+              <!-- 76→95.5, 80→90.8, 78→93.2, 74→98.3, 76→95.5, 82→88.2, 76→95.5 -->
+              <polyline
+                points="0,95.5 44.7,90.8 89.3,93.2 134,98.3 178.7,95.5 223.3,88.2 268,95.5"
+                fill="none" stroke="#6B9FC0" stroke-width="2.8"
+                stroke-linecap="round" stroke-linejoin="round"/>
+              <circle cx="0"     cy="95.5" r="3.5" fill="#6B9FC0"/>
+              <circle cx="44.7"  cy="90.8" r="3.5" fill="#6B9FC0"/>
+              <circle cx="89.3"  cy="93.2" r="3.5" fill="#6B9FC0"/>
+              <circle cx="134"   cy="98.3" r="3.5" fill="#6B9FC0"/>
+              <circle cx="178.7" cy="95.5" r="3.5" fill="#6B9FC0"/>
+              <circle cx="223.3" cy="88.2" r="4"   fill="#6B9FC0" stroke="#fff" stroke-width="1.5"/>
+              <circle cx="268"   cy="95.5" r="3.5" fill="#6B9FC0"/>
+
+              <!-- X axis day labels -->
+              <text x="0"     y="112" fill="#aaa" font-size="8" text-anchor="middle">Mon</text>
+              <text x="44.7"  y="112" fill="#aaa" font-size="8" text-anchor="middle">Tue</text>
+              <text x="89.3"  y="112" fill="#aaa" font-size="8" text-anchor="middle">Wed</text>
+              <text x="134"   y="112" fill="#aaa" font-size="8" text-anchor="middle">Thu</text>
+              <text x="178.7" y="112" fill="#aaa" font-size="8" text-anchor="middle">Fri</text>
+              <text x="223.3" y="112" fill="#aaa" font-size="8" font-weight="700" text-anchor="middle" fill="#4CAF93">Sat</text>
+              <text x="268"   y="112" fill="#aaa" font-size="8" text-anchor="middle">Sun</text>
+            </svg>
+          </div>
+
+          <!-- Status filter chips -->
+          <div class="status-filter-row">
+            <div class="sf all">All</div>
+            <div class="sf norm">● Normal</div>
+            <div class="sf elev">● Elevated</div>
+            <div class="sf high">● High</div>
+          </div>
+
+          <!-- Summary boxes -->
+          <div class="summary-row">
+            <div class="sum-box">
+              <div class="sum-lbl">Average</div>
+              <div class="sum-val">118<span style="font-size:10px">/76</span></div>
+              <div class="sum-unit">mmHg</div>
+            </div>
+            <div class="sum-box">
+              <div class="sum-lbl">Highest</div>
+              <div class="sum-val">125<span style="font-size:10px">/82</span></div>
+              <div class="sum-unit">mmHg</div>
+            </div>
+            <div class="sum-box">
+              <div class="sum-lbl">Readings</div>
+              <div class="sum-val">14</div>
+              <div class="sum-unit">this week</div>
+            </div>
+            <div class="sum-box">
+              <div class="sum-lbl">Avg Pulse</div>
+              <div class="sum-val">71</div>
+              <div class="sum-unit">bpm</div>
+            </div>
+          </div>
+
+          <!-- Reading rows -->
+          <div class="reading-row">
+            <div>
+              <div class="r-bp">118 / 76</div>
+              <div class="r-meta">Today · 8:30 AM · 72 bpm</div>
+            </div>
+            <span class="r-badge rb-norm">Normal</span>
+          </div>
+          <div class="reading-row">
+            <div>
+              <div class="r-bp">125 / 82</div>
+              <div class="r-meta">Yesterday · 7:45 AM · 76 bpm</div>
+            </div>
+            <span class="r-badge rb-elev">Elevated</span>
+          </div>
+          <div class="reading-row">
+            <div>
+              <div class="r-bp">115 / 74</div>
+              <div class="r-meta">Fri · 8:00 AM · 70 bpm</div>
+            </div>
+            <span class="r-badge rb-norm">Normal</span>
+          </div>
+
+          <!-- Tab bar -->
+          <div class="tab-bar">
+            <div class="tab-item"><div class="tab-icon-wrap"><span class="tab-icon">🏠</span></div><span class="tab-lbl">Home</span></div>
+            <div class="tab-item"><div class="tab-icon-wrap"><span class="tab-icon">📈</span></div><span class="tab-lbl">Readings</span></div>
+            <div class="tab-item"><div class="tab-icon-wrap"><span class="tab-icon">💊</span></div><span class="tab-lbl">Meds</span></div>
+            <div class="tab-item active"><div class="tab-icon-wrap"><span class="tab-icon">📊</span></div><span class="tab-lbl" style="color:#4CAF93">History</span></div>
+            <div class="tab-item"><div class="tab-icon-wrap"><span class="tab-icon">👤</span></div><span class="tab-lbl">Profile</span></div>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="screenshot-sub">Interactive charts, filterable by status<br>with period stats and reading history</div>
+    </div>
+
+
+    <!-- ═══════════════════════════════════════════
+         SCREENSHOT 3 — MEDICATIONS & INSIGHTS
+    ═══════════════════════════════════════════ -->
+    <div class="screenshot-wrap">
+      <div class="feature-badge">Medications &amp; AI</div>
+      <div class="screenshot-headline">Stay on Track,<br>Every Single Day</div>
+
+      <div class="phone">
+        <div class="screen screen-meds">
+
+          <div class="status-bar">
+            <span class="s-time">9:41</span>
+            <span class="s-icons">▲ ⊙ ▮▮▮</span>
+          </div>
+
+          <div class="nav-bar">
+            <div class="nav-title">Medications</div>
+            <span style="font-size:22px;color:#4CAF93;font-weight:300">＋</span>
+          </div>
+
+          <div class="sec-head" style="padding-top:0">
+            <span class="sec-title">Active Medications</span>
+            <span class="sec-action">2 active</span>
+          </div>
+
+          <div class="med-card">
+            <div class="med-icon" style="background:rgba(107,159,192,0.14)">💊</div>
+            <div class="med-info">
+              <div class="med-name">Lisinopril 10 mg</div>
+              <div class="med-dose">Once daily &nbsp;·&nbsp; ACE Inhibitor</div>
+              <div class="med-time">⏰ 8:00 AM — reminder active</div>
+            </div>
+            <div class="med-dot"></div>
+          </div>
+
+          <div class="med-card">
+            <div class="med-icon" style="background:rgba(244,160,176,0.14)">💊</div>
+            <div class="med-info">
+              <div class="med-name">Amlodipine 5 mg</div>
+              <div class="med-dose">Once daily &nbsp;·&nbsp; Calcium Blocker</div>
+              <div class="med-time">⏰ 8:00 AM — reminder active</div>
+            </div>
+            <div class="med-dot"></div>
+          </div>
+
+          <div class="med-card" style="opacity:0.45">
+            <div class="med-icon" style="background:rgba(90,112,128,0.10)">💊</div>
+            <div class="med-info">
+              <div class="med-name">Metoprolol 25 mg</div>
+              <div class="med-dose">Twice daily &nbsp;·&nbsp; Beta Blocker</div>
+              <div class="med-time" style="color:#aaa">⏸ Paused</div>
+            </div>
+            <div class="med-dot paused"></div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="sec-head">
+            <span class="sec-title">Health Insights</span>
+            <span class="ai-badge">AI</span>
+          </div>
+
+          <div class="ai-pill">
+            <div class="ai-pill-head">
+              <span>🥗</span>
+              <span class="ai-title">Nutrition Tip</span>
+            </div>
+            <div class="ai-text">"Reducing sodium below 1,500 mg/day can lower systolic pressure by up to 8 mmHg."</div>
+          </div>
+
+          <div class="ai-pill" style="background:linear-gradient(135deg,#E8EEF5,#E4F2EC)">
+            <div class="ai-pill-head">
+              <span>🏃</span>
+              <span class="ai-title">Activity Reminder</span>
+            </div>
+            <div class="ai-text">"30 minutes of moderate exercise five days a week is recommended for heart health."</div>
+          </div>
+
+          <!-- Tab bar -->
+          <div class="tab-bar">
+            <div class="tab-item"><div class="tab-icon-wrap"><span class="tab-icon">🏠</span></div><span class="tab-lbl">Home</span></div>
+            <div class="tab-item"><div class="tab-icon-wrap"><span class="tab-icon">📈</span></div><span class="tab-lbl">Readings</span></div>
+            <div class="tab-item active"><div class="tab-icon-wrap"><span class="tab-icon">💊</span></div><span class="tab-lbl" style="color:#4CAF93">Meds</span></div>
+            <div class="tab-item"><div class="tab-icon-wrap"><span class="tab-icon">📊</span></div><span class="tab-lbl">History</span></div>
+            <div class="tab-item"><div class="tab-icon-wrap"><span class="tab-icon">👤</span></div><span class="tab-lbl">Profile</span></div>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="screenshot-sub">Medication tracking with smart reminders<br>and personalized AI wellness insights</div>
+    </div>
+
+
+  </div><!-- /screenshots-row -->
+
+
+  <!-- ── Export instructions ── -->
+  <div style="text-align:center;margin-top:64px;padding:28px 40px;background:rgba(255,255,255,0.05);border-radius:20px;border:1px solid rgba(255,255,255,0.08);max-width:800px;margin-left:auto;margin-right:auto">
+    <p style="font-size:13px;color:rgba(255,255,255,0.4);line-height:1.8">
+      <strong style="color:rgba(255,255,255,0.65)">To export for App Store submission:</strong>
+      &nbsp;Open in Chrome or Safari → right-click each phone → "Save Image As" &nbsp;|&nbsp;
+      Or use browser zoom 200 % then screenshot.<br>
+      Required dimensions: <strong style="color:rgba(255,255,255,0.65)">1290 × 2796 px</strong> (iPhone 6.7") &nbsp;or&nbsp;
+      <strong style="color:rgba(255,255,255,0.65)">1242 × 2688 px</strong> (iPhone 6.5")
+    </p>
+  </div>
+
+</body>
+</html>
