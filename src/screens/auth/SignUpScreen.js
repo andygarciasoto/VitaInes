@@ -55,8 +55,15 @@ const SignUpScreen = ({ navigation }) => {
     setLoading(true);
     try {
       await signUp(email.trim(), password, name.trim());
-    } catch (error) {
-      Alert.alert('Error', t('auth.error_generic'));
+    } catch (err) {
+      const code = err?.code || '';
+      let message = t('auth.error_generic');
+      if (code === 'auth/email-already-in-use') message = t('auth.error_email_in_use');
+      else if (code === 'auth/invalid-email') message = t('auth.error_invalid_email');
+      else if (code === 'auth/weak-password') message = t('auth.error_weak_password');
+      else if (code === 'auth/network-request-failed') message = t('auth.error_network');
+      else if (code === 'auth/operation-not-allowed') message = t('auth.error_operation_not_allowed');
+      Alert.alert(t('auth.error_title'), message);
     } finally {
       setLoading(false);
     }

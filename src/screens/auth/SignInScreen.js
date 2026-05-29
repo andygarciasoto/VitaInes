@@ -1,18 +1,41 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, TextInput, StyleSheet, ScrollView,
   TouchableOpacity, KeyboardAvoidingView, Platform, Alert, ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Google from 'expo-auth-session/providers/google';
+import * as WebBrowser from 'expo-web-browser';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../../constants/theme';
 import { t } from '../../localization';
 import Button from '../../components/common/Button';
 import LanguageToggle from '../../components/common/LanguageToggle';
 import ViLogo from '../../components/common/ViLogo';
+import GoogleGIcon from '../../components/common/GoogleGIcon';
 import { signIn } from '../../services/firebase/auth';
-import { googleSignIn } from '../../services/firebase/socialAuth';
+import { signInWithGoogleCredential } from '../../services/firebase/socialAuth';
 import { useApp } from '../../store/AppContext';
+
+// Required for expo-auth-session to close the browser after OAuth redirect
+WebBrowser.maybeCompleteAuthSession();
+
+function getSignInErrorMessage(code) {
+  switch (code) {
+    case 'auth/user-not-found':
+    case 'auth/wrong-password':
+    case 'auth/invalid-credential':
+      return t('auth.error_invalid_credentials');
+    case 'auth/too-many-requests':
+      return t('auth.error_too_many_requests');
+    case 'auth/network-request-failed':
+      return t('auth.error_network');
+    case 'auth/user-disabled':
+      return t('auth.error_user_disabled');
+    default:
+      return t('auth.error_generic');
+  }
+}
 
 const SignInScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
@@ -22,6 +45,31 @@ const SignInScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [errors, setErrors] = useState({});
+
+  // expo-auth-session Google OAuth hook — works on iOS, Android, and web.
+  // Requires EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID / ANDROID / WEB env vars in EAS.
+  const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
+    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+    androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
+    clientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+  });
+
+  useEffect(() => {
+    if (!response) return;
+    if (response.type === 'success') {
+      const { id_token } = response.params;
+      setGoogleLoading(true);
+      signInWithGoogleCredential(id_token)
+        .catch(() => Alert.alert(t('auth.error_title'), t('auth.error_google_failed')))
+        .finally(() => setGoogleLoading(false));
+    } else if (response.type === 'error') {
+      setGoogleLoading(false);
+      Alert.alert(t('auth.error_title'), t('auth.error_google_failed'));
+    } else {
+      // 'dismiss' or 'cancel' — user closed the browser, no message needed
+      setGoogleLoading(false);
+    }
+  }, [response]);
 
   const validate = () => {
     const errs = {};
@@ -36,29 +84,21 @@ const SignInScreen = ({ navigation }) => {
     setLoading(true);
     try {
       await signIn(email.trim(), password);
-    } catch {
-      Alert.alert('Error', t('auth.error_generic'));
+    } catch (err) {
+      Alert.alert(t('auth.error_title'), getSignInErrorMessage(err?.code));
     } finally {
       setLoading(false);
     }
   };
 
-  const handleGoogleSignIn = async () => {
-    setGoogleLoading(true);
-    try {
-      await googleSignIn();
-    } catch (err) {
-      if (err.message === 'NATIVE_NOT_CONFIGURED') {
-        Alert.alert(
-          'Google Sign-In',
-          'Google Sign-In on mobile requires additional setup. Please use email/password or test on web.',
-        );
-      } else {
-        Alert.alert('Error', t('auth.error_generic'));
-      }
-    } finally {
-      setGoogleLoading(false);
+  const handleGoogleSignIn = () => {
+    if (!request) {
+      // Client IDs not configured — still show the option but explain it gracefully
+      Alert.alert('Google Sign-In', t('auth.error_google_not_configured'));
+      return;
     }
+    setGoogleLoading(true);
+    promptAsync().catch(() => setGoogleLoading(false));
   };
 
   return (
@@ -82,7 +122,7 @@ const SignInScreen = ({ navigation }) => {
           <View style={styles.form}>
             <Text style={styles.formTitle}>{t('auth.sign_in')}</Text>
 
-            {/* Social Buttons */}
+            {/* Google Sign-In */}
             <TouchableOpacity
               style={styles.socialBtn}
               onPress={handleGoogleSignIn}
@@ -93,7 +133,7 @@ const SignInScreen = ({ navigation }) => {
                 <ActivityIndicator color={COLORS.textPrimary} />
               ) : (
                 <>
-                  <Text style={styles.socialIcon}>G</Text>
+                  <GoogleGIcon size={20} style={styles.socialIconWrap} />
                   <Text style={styles.socialText}>{t('auth.continue_with_google')}</Text>
                 </>
               )}
@@ -173,22 +213,16 @@ const styles = StyleSheet.create({
   },
   formTitle: { fontSize: FONTS.xl, fontWeight: FONTS.bold, color: COLORS.textPrimary, marginBottom: SPACING.lg },
 
-  // Social button
   socialBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    borderWidth: 2, borderColor: COLORS.border,
+    borderWidth: 1.5, borderColor: '#DADCE0',
     borderRadius: RADIUS.full, paddingVertical: SPACING.md,
     backgroundColor: COLORS.white, marginBottom: SPACING.md,
     minHeight: 56, ...SHADOWS.sm,
   },
-  socialIcon: {
-    fontSize: FONTS.lg, fontWeight: FONTS.bold,
-    color: '#4285F4', marginRight: SPACING.sm,
-    width: 24, textAlign: 'center',
-  },
+  socialIconWrap: { marginRight: SPACING.sm },
   socialText: { fontSize: FONTS.md, fontWeight: FONTS.semiBold, color: COLORS.textPrimary },
 
-  // Divider
   dividerRow: { flexDirection: 'row', alignItems: 'center', marginVertical: SPACING.md },
   dividerLine: { flex: 1, height: 1, backgroundColor: COLORS.border },
   dividerText: { marginHorizontal: SPACING.md, fontSize: FONTS.sm, color: COLORS.textSecondary },

@@ -13,8 +13,8 @@ export const signUp = async (email, password, displayName) => {
   const credential = await createUserWithEmailAndPassword(auth, email, password);
   await updateProfile(credential.user, { displayName });
 
-  // Create user document in Firestore
-  await setDoc(doc(db, 'users', credential.user.uid), {
+  // Create user document — fire-and-forget so a Firestore error can't block sign-in
+  setDoc(doc(db, 'users', credential.user.uid), {
     uid: credential.user.uid,
     email,
     displayName,
@@ -28,7 +28,7 @@ export const signUp = async (email, password, displayName) => {
     doctorName: '',
     doctorPhone: '',
     emergencyContact: '',
-  });
+  }).catch((err) => console.warn('[auth] Firestore profile create failed:', err));
 
   return credential.user;
 };
