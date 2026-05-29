@@ -24,41 +24,48 @@ const TAB_ICONS = {
   Home: '🏠', History: '📈', Medications: '💊', Insights: '✨', Profile: '👤',
 };
 
-// Outside component — stable reference, no remount issues
-const TabIcon = ({ name, focused }) => (
-  <View style={[styles.tabIconContainer, focused && styles.tabIconFocused]}>
-    <Text style={styles.tabIcon}>{TAB_ICONS[name]}</Text>
+// Single component owns BOTH icon and label — eliminates the React Navigation
+// two-layer positioning that caused icon/label overlap.
+const TabItem = React.memo(({ name, label, focused }) => (
+  <View style={styles.tabItem}>
+    <View style={[styles.tabIconWrap, focused && styles.tabIconWrapFocused]}>
+      <Text style={styles.tabIcon}>{TAB_ICONS[name]}</Text>
+    </View>
+    <Text
+      style={[styles.tabLabel, focused && styles.tabLabelFocused]}
+      numberOfLines={1}
+      adjustsFontSizeToFit
+      minimumFontScale={0.75}
+    >
+      {label}
+    </Text>
   </View>
-);
+));
 
 const MainTabs = ({ language }) => (
-  // key={language} forces tab labels to re-render when language changes
+  // key={language} forces a full re-render so t() calls inside update immediately
   <Tab.Navigator
     key={language}
     screenOptions={({ route }) => ({
       headerShown: false,
-      tabBarIcon: ({ focused }) => <TabIcon name={route.name} focused={focused} />,
-      tabBarLabel: ({ focused }) => (
-        <Text
-          style={[styles.tabLabel, focused && styles.tabLabelFocused]}
-          numberOfLines={1}
-          adjustsFontSizeToFit
-          minimumFontScale={0.75}
-        >
-          {t(`nav.${route.name.toLowerCase()}`)}
-        </Text>
+      // tabBarShowLabel: false — we render the label ourselves inside TabItem
+      tabBarShowLabel: false,
+      tabBarIcon: ({ focused }) => (
+        <TabItem
+          name={route.name}
+          label={t(`nav.${route.name.toLowerCase()}`)}
+          focused={focused}
+        />
       ),
       tabBarStyle: styles.tabBar,
-      tabBarItemStyle: styles.tabItem,
-      tabBarActiveTintColor: COLORS.primary,
-      tabBarInactiveTintColor: COLORS.textLight,
+      tabBarItemStyle: styles.tabBarItem,
     })}
   >
-    <Tab.Screen name="Home" component={HomeScreen} />
-    <Tab.Screen name="History" component={HistoryScreen} />
+    <Tab.Screen name="Home"        component={HomeScreen} />
+    <Tab.Screen name="History"     component={HistoryScreen} />
     <Tab.Screen name="Medications" component={MedicationsScreen} />
-    <Tab.Screen name="Insights" component={InsightsScreen} />
-    <Tab.Screen name="Profile" component={ProfileScreen} />
+    <Tab.Screen name="Insights"    component={InsightsScreen} />
+    <Tab.Screen name="Profile"     component={ProfileScreen} />
   </Tab.Navigator>
 );
 
@@ -112,33 +119,61 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primaryLight,
   },
   loadingHeart: { fontSize: 64, color: COLORS.primary, marginBottom: SPACING.md },
-  loadingText: { fontSize: FONTS.xxl, fontWeight: FONTS.bold, color: COLORS.primary },
+  loadingText:  { fontSize: FONTS.xxl, fontWeight: FONTS.bold, color: COLORS.primary },
 
+  // Tab bar container — height only, no padding (all spacing lives inside TabItem)
   tabBar: {
     backgroundColor: COLORS.white,
-    borderTopWidth: 1, borderTopColor: COLORS.border,
-    // 84px gives 84 - 10 - 10 = 64px inner: icon(36) + gap(4) + label(14) = 54px → 10px breathing room
-    height: 84, paddingBottom: 10, paddingTop: 10,
-  },
-  tabItem: {
-    // No extra paddingTop — avoids the icon being pushed into the label
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+    height: 68,        // React Navigation appends device bottom-inset on top of this
     paddingTop: 0,
     paddingBottom: 0,
+  },
+  // Each touchable slot must match bar height so TabItem fills it completely
+  tabBarItem: {
+    height: 68,
+    paddingTop: 0,
+    paddingBottom: 0,
+  },
+
+  // TabItem: the single unit that renders icon circle + label
+  tabItem: {
+    flex: 1,
+    height: 68,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,             // explicit gap — icon and label never touch
+    paddingTop: 8,
+    paddingBottom: 4,
+  },
+  tabIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  tabIconContainer: {
-    width: 36, height: 36, borderRadius: 18,
-    alignItems: 'center', justifyContent: 'center',
-    marginBottom: 3,
+  tabIconWrapFocused: {
+    backgroundColor: COLORS.primaryLight,
   },
-  tabIconFocused: { backgroundColor: COLORS.primaryLight },
-  tabIcon: { fontSize: 20, lineHeight: 24 },
+  tabIcon: {
+    fontSize: 20,
+    lineHeight: 22,
+    textAlign: 'center',
+  },
   tabLabel: {
-    fontSize: 10.5, color: COLORS.textLight,
-    textAlign: 'center', maxWidth: 72,
+    fontSize: 10,
+    lineHeight: 13,
+    color: COLORS.textLight,
+    textAlign: 'center',
+    // Wide enough that even "Recomendaciones" fits before adjustsFontSizeToFit kicks in
+    width: 68,
   },
-  tabLabelFocused: { color: COLORS.primary, fontWeight: FONTS.semiBold },
+  tabLabelFocused: {
+    color: COLORS.primary,
+    fontWeight: FONTS.semiBold,
+  },
 });
 
 export default AppNavigator;
