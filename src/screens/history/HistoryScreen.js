@@ -4,14 +4,15 @@ import {
   ActivityIndicator, Dimensions, Alert,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { LineChart } from 'react-native-chart-kit';
+import BPChart from '../../components/charts/BPChart';
+import PulseChart from '../../components/charts/PulseChart';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   subDays, subMonths, subYears, startOfDay, endOfDay, format,
 } from 'date-fns';
 import {
   COLORS, FONTS, SPACING, RADIUS, SHADOWS,
-  getBPColor, getBPStatus, BP_THRESHOLDS,
+  getBPColor, getBPStatus,
 } from '../../constants/theme';
 import { t } from '../../localization';
 import { useApp } from '../../store/AppContext';
@@ -56,12 +57,6 @@ const getDateRange = (filter, customStart, customEnd) => {
   if (filter.days)       return { start: startOfDay(subDays(now, filter.days)), end: endOfDay(now) };
   if (filter.months)     return { start: startOfDay(subMonths(now, filter.months)), end: endOfDay(now) };
   return { start: startOfDay(subDays(now, 7)), end: endOfDay(now) };
-};
-
-const sampleData = (arr, max = 15) => {
-  if (arr.length <= max) return arr;
-  const step = arr.length / max;
-  return Array.from({ length: max }, (_, i) => arr[Math.floor(i * step)]);
 };
 
 const computeStatusCounts = (readings) => {
@@ -172,46 +167,6 @@ const HistoryScreen = ({ navigation }) => {
     loadStats(start, end);
   }, [customStart, customEnd, activeFilter, loadStats]);
 
-  // ── Chart data ─────────────────────────────────────────────────────────────
-  const bpChartData = useMemo(() => {
-    if (!stats?.readings || stats.readings.length < 2) return null;
-    const sorted  = [...stats.readings].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-    const sampled = sampleData(sorted, 14);
-    const n = sampled.length;
-    const step = Math.max(1, Math.ceil(n / 6));
-    return {
-      labels: sampled.map((r, i) =>
-        (i % step === 0 || i === n - 1) ? format(new Date(r.timestamp), 'M/d') : ''
-      ),
-      datasets: [
-        { data: sampled.map(r => r.systolic),                  color: () => COLORS.high,                   strokeWidth: 3 },
-        { data: sampled.map(r => r.diastolic),                 color: () => COLORS.blue,                   strokeWidth: 3 },
-        { data: Array(n).fill(BP_THRESHOLDS.normal.systolic),  color: () => 'rgba(76,175,147,0.75)',        strokeWidth: 2 },
-        { data: Array(n).fill(BP_THRESHOLDS.high.systolic),    color: () => 'rgba(231,76,60,0.75)',         strokeWidth: 2 },
-      ],
-    };
-  }, [stats?.readings]);
-
-  const pulseChartData = useMemo(() => {
-    if (!stats?.readings) return null;
-    const withPulse = stats.readings.filter(r => r.pulse > 0);
-    if (withPulse.length < 2) return null;
-    const sorted  = [...withPulse].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-    const sampled = sampleData(sorted, 14);
-    const n = sampled.length;
-    const step = Math.max(1, Math.ceil(n / 6));
-    return {
-      labels: sampled.map((r, i) =>
-        (i % step === 0 || i === n - 1) ? format(new Date(r.timestamp), 'M/d') : ''
-      ),
-      datasets: [
-        { data: sampled.map(r => r.pulse), color: () => COLORS.pink, strokeWidth: 3 },
-        { data: Array(n).fill(100),         color: () => 'rgba(231,76,60,0.75)', strokeWidth: 2 },
-      ],
-      legend: ['Pulse (bpm)'],
-    };
-  }, [stats?.readings]);
-
   const statusCounts = useMemo(
     () => stats?.readings ? computeStatusCounts(stats.readings) : null,
     [stats?.readings]
@@ -256,18 +211,6 @@ const HistoryScreen = ({ navigation }) => {
   const readingsToShow = stats?.readings
     ? (showAll ? stats.readings : stats.readings.slice(0, 25))
     : [];
-
-  const chartConfig = {
-    backgroundColor: COLORS.white,
-    backgroundGradientFrom: COLORS.white,
-    backgroundGradientTo: COLORS.white,
-    decimalPlaces: 0,
-    color: (opacity = 1) => `rgba(76, 175, 147, ${opacity})`,
-    labelColor: (opacity = 1) => `rgba(107, 126, 119, ${opacity})`,
-    style: { borderRadius: RADIUS.md },
-    propsForBackgroundLines: { stroke: COLORS.borderLight },
-    propsForDots: { r: '3', strokeWidth: '1' },
-  };
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -368,43 +311,14 @@ const HistoryScreen = ({ navigation }) => {
             )}
 
             {/* BP Trend chart */}
-            {bpChartData ? (
+            {stats.count >= 2 ? (
               <Card style={styles.chartCard} padding="sm">
                 <Text style={styles.chartTitle}>📈 {t('history.bp_trend')}</Text>
-                <Text style={styles.chartSubtitle}>{t('history.bp_subtitle')}</Text>
-                <LineChart
-                  data={bpChartData}
+                <BPChart
+                  readings={stats.readings}
                   width={CHART_WIDTH}
-                  height={230}
-                  chartConfig={chartConfig}
-                  bezier
-                  style={styles.chart}
-                  withLegend={false}
-                  withVerticalLines={false}
-                  withDots
-                  fromZero={false}
+                  language={language}
                 />
-                <View style={styles.legendRow}>
-                  <View style={styles.legendItem}>
-                    <View style={[styles.legendDot, { backgroundColor: COLORS.high }]} />
-                    <Text style={styles.legendText}>{t('history.systolic_label')}</Text>
-                  </View>
-                  <View style={styles.legendItem}>
-                    <View style={[styles.legendDot, { backgroundColor: COLORS.blue }]} />
-                    <Text style={styles.legendText}>{t('history.diastolic_label')}</Text>
-                  </View>
-                  <View style={styles.legendItem}>
-                    <View style={[styles.legendDot, { backgroundColor: COLORS.normal }]} />
-                    <Text style={styles.legendText}>{t('history.legend_normal_line')}</Text>
-                  </View>
-                  <View style={styles.legendItem}>
-                    <View style={[styles.legendDot, { backgroundColor: COLORS.high }]} />
-                    <Text style={styles.legendText}>{t('history.legend_high_line')}</Text>
-                  </View>
-                </View>
-                <View style={styles.thresholdWarning}>
-                  <Text style={styles.thresholdWarningText}>⚠️ {t('history.bp_warning')}</Text>
-                </View>
               </Card>
             ) : stats.count === 1 ? (
               <Card style={styles.chartCard} padding="md">
@@ -420,37 +334,14 @@ const HistoryScreen = ({ navigation }) => {
             ) : null}
 
             {/* Pulse trend chart */}
-            {pulseChartData && (
+            {stats.readings?.some(r => r.pulse > 0) && (
               <Card style={styles.chartCard} padding="sm">
                 <Text style={styles.chartTitle}>♥ {t('history.pulse_trend')}</Text>
-                <LineChart
-                  data={pulseChartData}
+                <PulseChart
+                  readings={stats.readings}
                   width={CHART_WIDTH}
-                  height={180}
-                  chartConfig={{
-                    ...chartConfig,
-                    color: () => COLORS.pink,
-                  }}
-                  bezier
-                  style={styles.chart}
-                  withLegend={false}
-                  withVerticalLines={false}
-                  withDots
-                  fromZero={false}
+                  language={language}
                 />
-                <View style={styles.legendRow}>
-                  <View style={styles.legendItem}>
-                    <View style={[styles.legendDot, { backgroundColor: COLORS.pink }]} />
-                    <Text style={styles.legendText}>{t('history.avg_pulse')}</Text>
-                  </View>
-                  <View style={styles.legendItem}>
-                    <View style={[styles.legendDot, { backgroundColor: COLORS.high }]} />
-                    <Text style={styles.legendText}>{t('history.legend_pulse_limit')}</Text>
-                  </View>
-                </View>
-                <View style={styles.thresholdWarning}>
-                  <Text style={styles.thresholdWarningText}>⚠️ {t('history.pulse_warning')}</Text>
-                </View>
               </Card>
             )}
 
@@ -601,21 +492,6 @@ const styles = StyleSheet.create({
     fontSize: FONTS.md, fontWeight: FONTS.semiBold, color: COLORS.textPrimary,
     marginBottom: 4, paddingHorizontal: SPACING.xs,
   },
-  chartSubtitle: {
-    fontSize: FONTS.xs, color: COLORS.textSecondary,
-    marginBottom: SPACING.sm, paddingHorizontal: SPACING.xs,
-  },
-  chart: { borderRadius: RADIUS.md, alignSelf: 'center' },
-
-  // Chart legend
-  legendRow: {
-    flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm,
-    paddingHorizontal: SPACING.xs, marginTop: SPACING.sm,
-  },
-  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  legendDot:  { width: 10, height: 10, borderRadius: 5 },
-  legendText: { fontSize: FONTS.xs, color: COLORS.textSecondary },
-
   // Single reading (when only 1 point)
   singleReadingView: { alignItems: 'center', paddingVertical: SPACING.md },
   singleBP:   { fontSize: FONTS.xxl, fontWeight: FONTS.bold },
@@ -650,14 +526,6 @@ const styles = StyleSheet.create({
   },
   pdfButtonDisabled: { opacity: 0.6 },
   pdfButtonText: { color: COLORS.white, fontSize: FONTS.md, fontWeight: FONTS.semiBold },
-
-  // Threshold warning banner below charts
-  thresholdWarning: {
-    backgroundColor: '#FFF3CD', borderRadius: RADIUS.sm,
-    padding: SPACING.sm, marginTop: SPACING.sm,
-    borderLeftWidth: 3, borderLeftColor: '#F5A623',
-  },
-  thresholdWarningText: { fontSize: FONTS.xs, color: '#856404', lineHeight: 18 },
 
 });
 
