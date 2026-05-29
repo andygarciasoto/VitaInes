@@ -1,18 +1,21 @@
 /**
- * Config plugin that adds a Podfile post_install hook to suppress the
+ * Config plugin: patches the generated Podfile to suppress the
  * Xcode 15 "incompatible function pointer types" error in React Native's
  * Yoga layout engine (Expo SDK 51 + Xcode 15 compatibility fix).
+ *
+ * Two strategies:
+ *   1. If a post_install block exists → insert the fix right after the opening line
+ *   2. If no post_install block exists → append a new one at the end of the file
  */
 const { withDangerousMod } = require('@expo/config-plugins');
 const path = require('path');
 const fs   = require('fs');
 
-const PATCH = `
-  # Fix: Xcode 15 treats YGMeasureFunc pointer mismatch as a hard error.
-  # This suppresses it at the pod level until React Native ships a patch.
+const YOGA_FIX = `
+  # Xcode 15 fix: suppress incompatible-function-pointer-types in Yoga pod
   installer.pods_project.targets.each do |target|
-    target.build_configurations.each do |config|
-      config.build_settings['CLANG_WARN_INCOMPATIBLE_FUNCTION_POINTER_TYPES'] = 'NO'
+    target.build_configurations.each do |cfg|
+      cfg.build_settings['CLANG_WARN_INCOMPATIBLE_FUNCTION_POINTER_TYPES'] = 'NO'
     end
   end
 `;
@@ -26,20 +29,28 @@ module.exports = function withYogaFix(config) {
         'Podfile'
       );
 
-      if (!fs.existsSync(podfilePath)) return config;
+      if (!fs.existsSync(podfilePath)) {
+        console.warn('[withYogaFix] Podfile not found at', podfilePath);
+        return config;
+      }
 
       let podfile = fs.readFileSync(podfilePath, 'utf8');
 
-      // Only patch once
+      // Already patched — nothing to do
       if (podfile.includes('CLANG_WARN_INCOMPATIBLE_FUNCTION_POINTER_TYPES')) {
         return config;
       }
 
-      // Insert right after the opening of the post_install block
-      podfile = podfile.replace(
-        /post_install do \|installer\|/,
-        `post_install do |installer|\n${PATCH}`
-      );
+      // Strategy 1: find an existing post_install block (any spacing/var name)
+      const match = podfile.match(/post_install\s+do\s+\|\w+\|/);
+      if (match) {
+        podfile = podfile.replace(match[0], match[0] + '\n' + YOGA_FIX);
+        console.log('[withYogaFix] Inserted fix into existing post_install block');
+      } else {
+        // Strategy 2: no post_install block — append a brand new one
+        podfile += `\npost_install do |installer|\n${YOGA_FIX}\nend\n`;
+        console.log('[withYogaFix] Appended new post_install block with fix');
+      }
 
       fs.writeFileSync(podfilePath, podfile);
       return config;
