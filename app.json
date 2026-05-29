@@ -20,9 +20,6 @@
       "infoPlist": {
         "NSHealthShareUsageDescription": "VitaInes needs access to health data to track your blood pressure readings.",
         "NSHealthUpdateUsageDescription": "VitaInes needs to write health data to track your blood pressure readings."
-      },
-      "extraBuildConfiguration": {
-        "CLANG_WARN_INCOMPATIBLE_FUNCTION_POINTER_TYPES": "NO"
       }
     },
     "android": {
@@ -38,6 +35,7 @@
       ]
     },
     "plugins": [
+      "./plugins/withYogaFix",
       [
         "expo-notifications",
         {
