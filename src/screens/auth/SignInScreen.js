@@ -37,17 +37,10 @@ function getSignInErrorMessage(code) {
   }
 }
 
-const SignInScreen = ({ navigation }) => {
-  const insets = useSafeAreaInsets();
-  const { state } = useApp();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
+// Isolated sub-component so the hook is only called on native.
+// On web, this component is never mounted → no crash when clientId is absent.
+const NativeGoogleButton = () => {
   const [googleLoading, setGoogleLoading] = useState(false);
-  const [errors, setErrors] = useState({});
-
-  // expo-auth-session Google OAuth hook — works on iOS, Android, and web.
-  // Requires EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID / ANDROID / WEB env vars in EAS.
   const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
     iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
     androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
@@ -66,10 +59,52 @@ const SignInScreen = ({ navigation }) => {
       setGoogleLoading(false);
       Alert.alert(t('auth.error_title'), t('auth.error_google_failed'));
     } else {
-      // 'dismiss' or 'cancel' — user closed the browser, no message needed
       setGoogleLoading(false);
     }
   }, [response]);
+
+  const handlePress = () => {
+    if (!request) {
+      Alert.alert('Google Sign-In', t('auth.error_google_not_configured'));
+      return;
+    }
+    setGoogleLoading(true);
+    promptAsync().catch(() => setGoogleLoading(false));
+  };
+
+  return (
+    <>
+      <TouchableOpacity
+        style={styles.socialBtn}
+        onPress={handlePress}
+        activeOpacity={0.8}
+        disabled={googleLoading}
+      >
+        {googleLoading ? (
+          <ActivityIndicator color={COLORS.textPrimary} />
+        ) : (
+          <>
+            <GoogleGIcon size={20} style={styles.socialIconWrap} />
+            <Text style={styles.socialText}>{t('auth.continue_with_google')}</Text>
+          </>
+        )}
+      </TouchableOpacity>
+      <View style={styles.dividerRow}>
+        <View style={styles.dividerLine} />
+        <Text style={styles.dividerText}>{t('auth.or')}</Text>
+        <View style={styles.dividerLine} />
+      </View>
+    </>
+  );
+};
+
+const SignInScreen = ({ navigation }) => {
+  const insets = useSafeAreaInsets();
+  const { state } = useApp();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState({});
 
   const validate = () => {
     const errs = {};
@@ -89,16 +124,6 @@ const SignInScreen = ({ navigation }) => {
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleGoogleSignIn = () => {
-    if (!request) {
-      // Client IDs not configured — still show the option but explain it gracefully
-      Alert.alert('Google Sign-In', t('auth.error_google_not_configured'));
-      return;
-    }
-    setGoogleLoading(true);
-    promptAsync().catch(() => setGoogleLoading(false));
   };
 
   return (
@@ -122,28 +147,8 @@ const SignInScreen = ({ navigation }) => {
           <View style={styles.form}>
             <Text style={styles.formTitle}>{t('auth.sign_in')}</Text>
 
-            {/* Google Sign-In */}
-            <TouchableOpacity
-              style={styles.socialBtn}
-              onPress={handleGoogleSignIn}
-              activeOpacity={0.8}
-              disabled={googleLoading}
-            >
-              {googleLoading ? (
-                <ActivityIndicator color={COLORS.textPrimary} />
-              ) : (
-                <>
-                  <GoogleGIcon size={20} style={styles.socialIconWrap} />
-                  <Text style={styles.socialText}>{t('auth.continue_with_google')}</Text>
-                </>
-              )}
-            </TouchableOpacity>
-
-            <View style={styles.dividerRow}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>{t('auth.or')}</Text>
-              <View style={styles.dividerLine} />
-            </View>
+            {/* Google Sign-In — native only (hook crashes on web without clientId) */}
+            {Platform.OS !== 'web' && <NativeGoogleButton />}
 
             {/* Email */}
             <View style={styles.field}>
