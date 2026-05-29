@@ -8,7 +8,8 @@
     "ios": "npx expo@51 start --ios",
     "web": "npx expo@51 start --web",
     "test": "jest --watchAll",
-    "lint": "eslint src/"
+    "lint": "eslint src/",
+    "postinstall": "node scripts/patchYoga.js"
   },
   "jest": {
     "preset": "jest-expo"
