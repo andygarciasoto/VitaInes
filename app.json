@@ -11,7 +11,9 @@
       "resizeMode": "contain",
       "backgroundColor": "#F0F8F4"
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.vitaInes.app",
@@ -43,6 +45,9 @@
       ]
     ],
     "extra": {
+      "eas": {
+        "projectId": "fbe8586c-7226-414d-8fab-51f4a6af0b5b"
+      }
     }
   }
 }
