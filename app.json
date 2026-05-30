@@ -18,6 +18,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.vitaInes.app",
+      "usesAppleSignIn": true,
       "infoPlist": {
         "NSHealthShareUsageDescription": "VitaInes needs access to health data to track your blood pressure readings.",
         "NSHealthUpdateUsageDescription": "VitaInes needs to write health data to track your blood pressure readings."
@@ -37,6 +38,7 @@
     },
     "plugins": [
       "./plugins/withYogaFix",
+      "expo-apple-authentication",
       [
         "expo-notifications",
         {

@@ -7,6 +7,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Google from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
+import * as AppleAuthentication from 'expo-apple-authentication';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../../constants/theme';
 import { t } from '../../localization';
 import Button from '../../components/common/Button';
@@ -14,10 +15,12 @@ import LanguageToggle from '../../components/common/LanguageToggle';
 import ViLogo from '../../components/common/ViLogo';
 import GoogleGIcon from '../../components/common/GoogleGIcon';
 import { signIn } from '../../services/firebase/auth';
-import { signInWithGoogleCredential } from '../../services/firebase/socialAuth';
-import { useApp } from '../../store/AppContext';
+import {
+  signInWithGoogleCredential,
+  signInWithAppleCredential,
+  generateNonce,
+} from '../../services/firebase/socialAuth';
 
-// Required for expo-auth-session to close the browser after OAuth redirect
 WebBrowser.maybeCompleteAuthSession();
 
 function getSignInErrorMessage(code) {
@@ -26,6 +29,8 @@ function getSignInErrorMessage(code) {
     case 'auth/wrong-password':
     case 'auth/invalid-credential':
       return t('auth.error_invalid_credentials');
+    case 'auth/account-exists-with-different-credential':
+      return t('auth.error_account_exists_different_provider');
     case 'auth/too-many-requests':
       return t('auth.error_too_many_requests');
     case 'auth/network-request-failed':
@@ -37,8 +42,70 @@ function getSignInErrorMessage(code) {
   }
 }
 
-// Isolated sub-component so the hook is only called on native.
-// On web, this component is never mounted → no crash when clientId is absent.
+// ─── Apple Sign-In (iOS only) ─────────────────────────────────────────────────
+// Separate component so the availability check stays isolated and doesn't
+// block or error on Android/web where the module is absent.
+const NativeAppleButton = () => {
+  const [available, setAvailable] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    AppleAuthentication.isAvailableAsync()
+      .then(setAvailable)
+      .catch(() => setAvailable(false));
+  }, []);
+
+  if (!available) return null;
+
+  const handlePress = async () => {
+    setLoading(true);
+    try {
+      const { rawNonce, hashedNonce } = await generateNonce();
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+        nonce: hashedNonce,
+      });
+      await signInWithAppleCredential(
+        credential.identityToken,
+        rawNonce,
+        credential.fullName
+      );
+    } catch (err) {
+      // ERR_REQUEST_CANCELED means the user dismissed the sheet — not an error
+      if (err.code !== 'ERR_REQUEST_CANCELED') {
+        Alert.alert(
+          t('auth.error_title'),
+          getSignInErrorMessage(err?.code) || t('auth.error_apple_failed')
+        );
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <View style={[styles.socialBtn, styles.appleBtnLoading]}>
+        <ActivityIndicator color={COLORS.white} />
+      </View>
+    );
+  }
+
+  return (
+    <AppleAuthentication.AppleAuthenticationButton
+      buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+      buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+      cornerRadius={RADIUS.full}
+      style={styles.appleBtn}
+      onPress={handlePress}
+    />
+  );
+};
+
+// ─── Google Sign-In (native only — hook crashes on web without clientId) ──────
 const NativeGoogleButton = () => {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
@@ -53,7 +120,10 @@ const NativeGoogleButton = () => {
       const { id_token } = response.params;
       setGoogleLoading(true);
       signInWithGoogleCredential(id_token)
-        .catch(() => Alert.alert(t('auth.error_title'), t('auth.error_google_failed')))
+        .catch((err) => Alert.alert(
+          t('auth.error_title'),
+          getSignInErrorMessage(err?.code) || t('auth.error_google_failed')
+        ))
         .finally(() => setGoogleLoading(false));
     } else if (response.type === 'error') {
       setGoogleLoading(false);
@@ -73,38 +143,33 @@ const NativeGoogleButton = () => {
   };
 
   return (
-    <>
-      <TouchableOpacity
-        style={styles.socialBtn}
-        onPress={handlePress}
-        activeOpacity={0.8}
-        disabled={googleLoading}
-      >
-        {googleLoading ? (
-          <ActivityIndicator color={COLORS.textPrimary} />
-        ) : (
-          <>
-            <GoogleGIcon size={20} style={styles.socialIconWrap} />
-            <Text style={styles.socialText}>{t('auth.continue_with_google')}</Text>
-          </>
-        )}
-      </TouchableOpacity>
-      <View style={styles.dividerRow}>
-        <View style={styles.dividerLine} />
-        <Text style={styles.dividerText}>{t('auth.or')}</Text>
-        <View style={styles.dividerLine} />
-      </View>
-    </>
+    <TouchableOpacity
+      style={styles.socialBtn}
+      onPress={handlePress}
+      activeOpacity={0.8}
+      disabled={googleLoading}
+    >
+      {googleLoading ? (
+        <ActivityIndicator color={COLORS.textPrimary} />
+      ) : (
+        <>
+          <GoogleGIcon size={20} style={styles.socialIconWrap} />
+          <Text style={styles.socialText}>{t('auth.continue_with_google')}</Text>
+        </>
+      )}
+    </TouchableOpacity>
   );
 };
 
+// ─── Screen ───────────────────────────────────────────────────────────────────
 const SignInScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
-  const { state } = useApp();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
+
+  const showSocialSection = Platform.OS !== 'web';
 
   const validate = () => {
     const errs = {};
@@ -147,10 +212,20 @@ const SignInScreen = ({ navigation }) => {
           <View style={styles.form}>
             <Text style={styles.formTitle}>{t('auth.sign_in')}</Text>
 
-            {/* Google Sign-In — native only (hook crashes on web without clientId) */}
-            {Platform.OS !== 'web' && <NativeGoogleButton />}
+            {showSocialSection && (
+              <>
+                {/* Apple Sign-In — iOS only, only renders when available */}
+                {Platform.OS === 'ios' && <NativeAppleButton />}
+                {/* Google Sign-In — all native platforms */}
+                <NativeGoogleButton />
+                <View style={styles.dividerRow}>
+                  <View style={styles.dividerLine} />
+                  <Text style={styles.dividerText}>{t('auth.or')}</Text>
+                  <View style={styles.dividerLine} />
+                </View>
+              </>
+            )}
 
-            {/* Email */}
             <View style={styles.field}>
               <Text style={styles.fieldLabel}>{t('auth.email')}</Text>
               <TextInput
@@ -166,7 +241,6 @@ const SignInScreen = ({ navigation }) => {
               {errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
             </View>
 
-            {/* Password */}
             <View style={styles.field}>
               <Text style={styles.fieldLabel}>{t('auth.password')}</Text>
               <TextInput
@@ -184,7 +258,13 @@ const SignInScreen = ({ navigation }) => {
               <Text style={styles.forgotText}>{t('auth.forgot_password')}</Text>
             </TouchableOpacity>
 
-            <Button title={t('auth.sign_in')} onPress={handleSignIn} loading={loading} size="lg" style={styles.btn} />
+            <Button
+              title={t('auth.sign_in')}
+              onPress={handleSignIn}
+              loading={loading}
+              size="lg"
+              style={styles.btn}
+            />
 
             <View style={styles.switchRow}>
               <Text style={styles.switchText}>{t('auth.no_account')} </Text>
@@ -213,11 +293,21 @@ const styles = StyleSheet.create({
 
   form: {
     backgroundColor: COLORS.white, borderRadius: RADIUS.xl, padding: SPACING.xl,
-    shadowColor: COLORS.primary, shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1, shadowRadius: 16, elevation: 4,
+    ...SHADOWS.md,
   },
   formTitle: { fontSize: FONTS.xl, fontWeight: FONTS.bold, color: COLORS.textPrimary, marginBottom: SPACING.lg },
 
+  appleBtn: {
+    width: '100%',
+    height: 56,
+    marginBottom: SPACING.md,
+  },
+  appleBtnLoading: {
+    backgroundColor: '#1C1C1E',
+    borderColor: '#1C1C1E',
+    borderRadius: RADIUS.full,
+    height: 56,
+  },
   socialBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     borderWidth: 1.5, borderColor: '#DADCE0',

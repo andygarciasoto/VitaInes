@@ -7,21 +7,22 @@ import * as Notifications from 'expo-notifications';
 import { AppProvider } from './src/store/AppContext';
 import AppNavigator from './src/navigation/AppNavigator';
 
-SplashScreen.preventAutoHideAsync();
+SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export default function App() {
   useEffect(() => {
-    const timer = setTimeout(() => SplashScreen.hideAsync(), 1500);
+    // Hide the native splash on first paint — the in-app loading screen
+    // in AppNavigator shows while Firebase auth state resolves.
+    // No artificial delay: any delay here directly blocks the user from
+    // seeing the sign-in screen.
+    SplashScreen.hideAsync().catch(() => {});
 
     const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
       const { type } = response.notification.request.content.data || {};
       console.log('Notification tapped:', type);
     });
 
-    return () => {
-      clearTimeout(timer);
-      subscription.remove();
-    };
+    return () => subscription.remove();
   }, []);
 
   return (

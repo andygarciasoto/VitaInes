@@ -107,31 +107,42 @@ export const AppProvider = ({ children }) => {
   // Subscribe to Firebase auth state
   useEffect(() => {
     let failsafe;
+    let unsubscribe = () => {};
 
-    const unsubscribe = subscribeToAuthState(async (user) => {
-      clearTimeout(failsafe);
-      if (user) {
-        dispatch({ type: 'SET_USER', payload: user });
-        try {
-          const profile = await getUserProfile(user.uid);
-          if (profile) {
-            dispatch({ type: 'SET_USER_PROFILE', payload: profile });
-            if (profile.language) {
-              setLocale(profile.language);
-              dispatch({ type: 'SET_LANGUAGE', payload: profile.language });
-            }
-          }
-        } catch {}
-      } else {
-        dispatch({ type: 'SIGN_OUT' });
-      }
-    });
-
-    // If Firebase never fires (offline / init failure), unblock navigation after 3 s
+    // Failsafe fires if Firebase never calls back (bad config / no network).
+    // 2 s is enough for a cold start; cached auth state fires nearly instantly.
     failsafe = setTimeout(() => {
       console.warn('[AppContext] auth timeout — unblocking navigation');
       dispatch({ type: 'SET_AUTH_LOADING', payload: false });
-    }, 3000);
+    }, 2000);
+
+    try {
+      unsubscribe = subscribeToAuthState(async (user) => {
+        clearTimeout(failsafe);
+        if (user) {
+          dispatch({ type: 'SET_USER', payload: user });
+          try {
+            const profile = await getUserProfile(user.uid);
+            if (profile) {
+              dispatch({ type: 'SET_USER_PROFILE', payload: profile });
+              if (profile.language) {
+                setLocale(profile.language);
+                dispatch({ type: 'SET_LANGUAGE', payload: profile.language });
+              }
+            }
+          } catch (profileErr) {
+            console.warn('[AppContext] failed to load user profile:', profileErr);
+          }
+        } else {
+          dispatch({ type: 'SIGN_OUT' });
+        }
+      });
+    } catch (err) {
+      // Firebase failed to initialize (e.g. bad config) — unblock immediately
+      console.warn('[AppContext] Firebase auth subscription failed:', err);
+      clearTimeout(failsafe);
+      dispatch({ type: 'SET_AUTH_LOADING', payload: false });
+    }
 
     return () => {
       clearTimeout(failsafe);
