@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, TextInput, StyleSheet, ScrollView,
-  TouchableOpacity, KeyboardAvoidingView, Platform, Alert, ActivityIndicator,
+  TouchableOpacity, KeyboardAvoidingView, Platform, ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -23,29 +23,88 @@ import {
 
 WebBrowser.maybeCompleteAuthSession();
 
-function getSignInErrorMessage(code) {
+// ─── Config check ────────────────────────────────────────────────────────────
+const FIREBASE_CONFIGURED =
+  !!process.env.EXPO_PUBLIC_FIREBASE_API_KEY &&
+  !process.env.EXPO_PUBLIC_FIREBASE_API_KEY.startsWith('YOUR_');
+
+// ─── Shared UI pieces ────────────────────────────────────────────────────────
+const ErrorBanner = ({ message }) => {
+  if (!message) return null;
+  return (
+    <View style={sharedStyles.errorBanner}>
+      <Text style={sharedStyles.errorBannerText}>⚠️  {message}</Text>
+    </View>
+  );
+};
+
+const ConfigWarning = () => {
+  if (FIREBASE_CONFIGURED) return null;
+  return (
+    <View style={sharedStyles.configWarning}>
+      <Text style={sharedStyles.configWarningText}>
+        🔧  Firebase is not configured. Set EXPO_PUBLIC_FIREBASE_* environment variables to enable authentication.
+      </Text>
+    </View>
+  );
+};
+
+const sharedStyles = StyleSheet.create({
+  errorBanner: {
+    backgroundColor: '#FDECEA',
+    borderWidth: 1,
+    borderColor: COLORS.high,
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
+    marginBottom: SPACING.md,
+  },
+  errorBannerText: {
+    color: COLORS.high,
+    fontSize: FONTS.sm,
+    fontWeight: FONTS.semiBold,
+    lineHeight: 22,
+  },
+  configWarning: {
+    backgroundColor: '#FEF9E7',
+    borderWidth: 1,
+    borderColor: '#F39C12',
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
+    marginBottom: SPACING.lg,
+  },
+  configWarningText: {
+    color: '#856404',
+    fontSize: FONTS.sm,
+    lineHeight: 22,
+  },
+});
+
+// ─── Error code → message ────────────────────────────────────────────────────
+function mapFirebaseError(code) {
   switch (code) {
     case 'auth/user-not-found':
     case 'auth/wrong-password':
     case 'auth/invalid-credential':
-      return t('auth.error_invalid_credentials');
+      return 'Incorrect email or password. Please check your credentials and try again.';
+    case 'auth/invalid-email':
+      return 'The email address is not valid. Please enter a correct email.';
     case 'auth/account-exists-with-different-credential':
-      return t('auth.error_account_exists_different_provider');
+      return 'An account already exists with this email using a different sign-in method. Please sign in with email and password.';
     case 'auth/too-many-requests':
-      return t('auth.error_too_many_requests');
+      return 'Too many failed attempts. Please wait a few minutes and try again.';
     case 'auth/network-request-failed':
-      return t('auth.error_network');
+      return 'No internet connection. Please check your network and try again.';
     case 'auth/user-disabled':
-      return t('auth.error_user_disabled');
+      return 'This account has been disabled. Please contact support.';
+    case 'auth/invalid-api-key':
+      return 'Firebase is not configured correctly. Check your environment variables.';
     default:
-      return t('auth.error_generic');
+      return `Sign-in failed. (${code || 'unknown error'}) Please try again or contact support.`;
   }
 }
 
-// ─── Apple Sign-In (iOS only) ─────────────────────────────────────────────────
-// Separate component so the availability check stays isolated and doesn't
-// block or error on Android/web where the module is absent.
-const NativeAppleButton = () => {
+// ─── Apple Sign-In ────────────────────────────────────────────────────────────
+const NativeAppleButton = ({ onError }) => {
   const [available, setAvailable] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -58,7 +117,9 @@ const NativeAppleButton = () => {
   if (!available) return null;
 
   const handlePress = async () => {
+    console.log('[SignIn] Apple Sign-In button pressed');
     setLoading(true);
+    onError('');
     try {
       const { rawNonce, hashedNonce } = await generateNonce();
       const credential = await AppleAuthentication.signInAsync({
@@ -68,18 +129,17 @@ const NativeAppleButton = () => {
         ],
         nonce: hashedNonce,
       });
+      console.log('[SignIn] Apple credential received, signing into Firebase');
       await signInWithAppleCredential(
         credential.identityToken,
         rawNonce,
         credential.fullName
       );
+      console.log('[SignIn] Apple Sign-In SUCCESS');
     } catch (err) {
-      // ERR_REQUEST_CANCELED means the user dismissed the sheet — not an error
       if (err.code !== 'ERR_REQUEST_CANCELED') {
-        Alert.alert(
-          t('auth.error_title'),
-          getSignInErrorMessage(err?.code) || t('auth.error_apple_failed')
-        );
+        console.error('[SignIn] Apple Sign-In error:', err.code, err.message);
+        onError(mapFirebaseError(err?.code));
       }
     } finally {
       setLoading(false);
@@ -105,8 +165,8 @@ const NativeAppleButton = () => {
   );
 };
 
-// ─── Google Sign-In (native only — hook crashes on web without clientId) ──────
-const NativeGoogleButton = () => {
+// ─── Google Sign-In ───────────────────────────────────────────────────────────
+const NativeGoogleButton = ({ onError }) => {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
     iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
@@ -118,28 +178,37 @@ const NativeGoogleButton = () => {
     if (!response) return;
     if (response.type === 'success') {
       const { id_token } = response.params;
+      console.log('[SignIn] Google token received, signing into Firebase');
       setGoogleLoading(true);
       signInWithGoogleCredential(id_token)
-        .catch((err) => Alert.alert(
-          t('auth.error_title'),
-          getSignInErrorMessage(err?.code) || t('auth.error_google_failed')
-        ))
+        .then(() => console.log('[SignIn] Google Sign-In SUCCESS'))
+        .catch((err) => {
+          console.error('[SignIn] Google Firebase error:', err.code, err.message);
+          onError(mapFirebaseError(err?.code));
+        })
         .finally(() => setGoogleLoading(false));
     } else if (response.type === 'error') {
+      console.error('[SignIn] Google auth session error:', response.error);
       setGoogleLoading(false);
-      Alert.alert(t('auth.error_title'), t('auth.error_google_failed'));
+      onError('Google sign-in failed. Please try again.');
     } else {
       setGoogleLoading(false);
     }
   }, [response]);
 
   const handlePress = () => {
+    console.log('[SignIn] Google Sign-In button pressed, request ready:', !!request);
     if (!request) {
-      Alert.alert('Google Sign-In', t('auth.error_google_not_configured'));
+      onError('Google Sign-In is not configured. Please use email/password sign-in.');
       return;
     }
+    onError('');
     setGoogleLoading(true);
-    promptAsync().catch(() => setGoogleLoading(false));
+    promptAsync().catch((err) => {
+      console.error('[SignIn] promptAsync error:', err);
+      setGoogleLoading(false);
+      onError('Could not open Google sign-in. Please try again.');
+    });
   };
 
   return (
@@ -167,25 +236,49 @@ const SignInScreen = ({ navigation }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [errors, setErrors] = useState({});
+  const [fieldErrors, setFieldErrors] = useState({});
+  const [bannerError, setBannerError] = useState('');
 
   const showSocialSection = Platform.OS !== 'web';
 
   const validate = () => {
+    console.log('[SignIn] Validating inputs — email:', email, 'password length:', password.length);
     const errs = {};
-    if (!email.trim() || !/\S+@\S+\.\S+/.test(email)) errs.email = t('auth.error_invalid_email');
-    if (!password || password.length < 6) errs.password = t('auth.error_weak_password');
-    setErrors(errs);
-    return Object.keys(errs).length === 0;
+    if (!email.trim()) {
+      errs.email = 'Please enter your email address.';
+    } else if (!/\S+@\S+\.\S+/.test(email)) {
+      errs.email = 'Please enter a valid email address.';
+    }
+    if (!password) {
+      errs.password = 'Please enter your password.';
+    } else if (password.length < 6) {
+      errs.password = 'Password must be at least 6 characters.';
+    }
+    setFieldErrors(errs);
+    const valid = Object.keys(errs).length === 0;
+    if (!valid) {
+      console.log('[SignIn] Validation failed:', errs);
+      setBannerError('Please fix the errors below before signing in.');
+    }
+    return valid;
   };
 
   const handleSignIn = async () => {
+    console.log('[SignIn] Sign In button pressed');
+    setBannerError('');
     if (!validate()) return;
+
+    console.log('[SignIn] Validation passed — calling Firebase signIn');
     setLoading(true);
     try {
-      await signIn(email.trim(), password);
+      const user = await signIn(email.trim(), password);
+      console.log('[SignIn] Firebase signIn SUCCESS — uid:', user?.uid);
+      // Navigation is handled automatically by onAuthStateChanged in AppContext
     } catch (err) {
-      Alert.alert(t('auth.error_title'), getSignInErrorMessage(err?.code));
+      const msg = mapFirebaseError(err?.code);
+      console.error('[SignIn] Firebase signIn FAILED — code:', err?.code, 'message:', err?.message);
+      setBannerError(msg);
+      setFieldErrors({});
     } finally {
       setLoading(false);
     }
@@ -212,12 +305,13 @@ const SignInScreen = ({ navigation }) => {
           <View style={styles.form}>
             <Text style={styles.formTitle}>{t('auth.sign_in')}</Text>
 
+            <ConfigWarning />
+            <ErrorBanner message={bannerError} />
+
             {showSocialSection && (
               <>
-                {/* Apple Sign-In — iOS only, only renders when available */}
-                {Platform.OS === 'ios' && <NativeAppleButton />}
-                {/* Google Sign-In — all native platforms */}
-                <NativeGoogleButton />
+                {Platform.OS === 'ios' && <NativeAppleButton onError={setBannerError} />}
+                <NativeGoogleButton onError={setBannerError} />
                 <View style={styles.dividerRow}>
                   <View style={styles.dividerLine} />
                   <Text style={styles.dividerText}>{t('auth.or')}</Text>
@@ -229,29 +323,30 @@ const SignInScreen = ({ navigation }) => {
             <View style={styles.field}>
               <Text style={styles.fieldLabel}>{t('auth.email')}</Text>
               <TextInput
-                style={[styles.input, errors.email && styles.inputError]}
+                style={[styles.input, fieldErrors.email && styles.inputError]}
                 value={email}
-                onChangeText={setEmail}
+                onChangeText={(v) => { setEmail(v); setFieldErrors((e) => ({ ...e, email: '' })); setBannerError(''); }}
                 placeholder="you@email.com"
                 placeholderTextColor={COLORS.textLight}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
               />
-              {errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
+              {fieldErrors.email ? <Text style={styles.errorText}>{fieldErrors.email}</Text> : null}
             </View>
 
             <View style={styles.field}>
               <Text style={styles.fieldLabel}>{t('auth.password')}</Text>
               <TextInput
-                style={[styles.input, errors.password && styles.inputError]}
+                style={[styles.input, fieldErrors.password && styles.inputError]}
                 value={password}
-                onChangeText={setPassword}
+                onChangeText={(v) => { setPassword(v); setFieldErrors((e) => ({ ...e, password: '' })); setBannerError(''); }}
                 placeholder="••••••"
                 placeholderTextColor={COLORS.textLight}
                 secureTextEntry
+                autoCapitalize="none"
               />
-              {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
+              {fieldErrors.password ? <Text style={styles.errorText}>{fieldErrors.password}</Text> : null}
             </View>
 
             <TouchableOpacity onPress={() => navigation.navigate('ForgotPassword')} style={styles.forgot}>
@@ -259,7 +354,7 @@ const SignInScreen = ({ navigation }) => {
             </TouchableOpacity>
 
             <Button
-              title={t('auth.sign_in')}
+              title={loading ? 'Signing in…' : t('auth.sign_in')}
               onPress={handleSignIn}
               loading={loading}
               size="lg"
@@ -297,16 +392,11 @@ const styles = StyleSheet.create({
   },
   formTitle: { fontSize: FONTS.xl, fontWeight: FONTS.bold, color: COLORS.textPrimary, marginBottom: SPACING.lg },
 
-  appleBtn: {
-    width: '100%',
-    height: 56,
-    marginBottom: SPACING.md,
-  },
+  appleBtn: { width: '100%', height: 56, marginBottom: SPACING.md },
   appleBtnLoading: {
-    backgroundColor: '#1C1C1E',
-    borderColor: '#1C1C1E',
-    borderRadius: RADIUS.full,
-    height: 56,
+    backgroundColor: '#1C1C1E', borderColor: '#1C1C1E',
+    borderRadius: RADIUS.full, height: 56, alignItems: 'center', justifyContent: 'center',
+    marginBottom: SPACING.md,
   },
   socialBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
@@ -330,7 +420,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background, minHeight: 56,
   },
   inputError: { borderColor: COLORS.high },
-  errorText: { fontSize: FONTS.sm, color: COLORS.high, marginTop: SPACING.xs },
+  errorText: { fontSize: FONTS.sm, color: COLORS.high, marginTop: SPACING.xs, fontWeight: FONTS.medium },
 
   forgot: { alignSelf: 'flex-end', marginBottom: SPACING.lg },
   forgotText: { fontSize: FONTS.sm, color: COLORS.primary, fontWeight: FONTS.medium },

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, StyleSheet, ScrollView,
-  TouchableOpacity, KeyboardAvoidingView, Platform, Alert,
+  TouchableOpacity, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -11,35 +11,121 @@ import Button from '../../components/common/Button';
 import ViLogo from '../../components/common/ViLogo';
 import { resetPassword } from '../../services/firebase/auth';
 
+// ─── Config check ─────────────────────────────────────────────────────────────
+const FIREBASE_CONFIGURED =
+  !!process.env.EXPO_PUBLIC_FIREBASE_API_KEY &&
+  !process.env.EXPO_PUBLIC_FIREBASE_API_KEY.startsWith('YOUR_');
+
+// ─── Banners ──────────────────────────────────────────────────────────────────
+const ErrorBanner = ({ message }) => {
+  if (!message) return null;
+  return (
+    <View style={bannerStyles.error}>
+      <Text style={bannerStyles.errorText}>⚠️  {message}</Text>
+    </View>
+  );
+};
+
+const ConfigWarning = () => {
+  if (FIREBASE_CONFIGURED) return null;
+  return (
+    <View style={bannerStyles.warning}>
+      <Text style={bannerStyles.warningText}>
+        🔧  Firebase is not configured. Set EXPO_PUBLIC_FIREBASE_* environment variables to enable password reset.
+      </Text>
+    </View>
+  );
+};
+
+const bannerStyles = StyleSheet.create({
+  error: {
+    backgroundColor: '#FDECEA',
+    borderWidth: 1,
+    borderColor: COLORS.high,
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
+    marginBottom: SPACING.md,
+  },
+  errorText: {
+    color: COLORS.high,
+    fontSize: FONTS.sm,
+    fontWeight: FONTS.semiBold,
+    lineHeight: 22,
+  },
+  warning: {
+    backgroundColor: '#FEF9E7',
+    borderWidth: 1,
+    borderColor: '#F39C12',
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
+    marginBottom: SPACING.lg,
+  },
+  warningText: { color: '#856404', fontSize: FONTS.sm, lineHeight: 22 },
+});
+
+// ─── Error mapping ────────────────────────────────────────────────────────────
+function mapResetError(code) {
+  switch (code) {
+    case 'auth/user-not-found':
+      return 'No account found with this email address. Please check the email and try again.';
+    case 'auth/invalid-email':
+      return 'The email address is not valid. Please enter a correct email.';
+    case 'auth/network-request-failed':
+      return 'No internet connection. Please check your network and try again.';
+    case 'auth/invalid-api-key':
+      return 'Firebase is not configured correctly. Check your environment variables.';
+    case 'auth/too-many-requests':
+      return 'Too many reset attempts. Please wait a few minutes and try again.';
+    default:
+      return `Password reset failed. (${code || 'unknown error'}) Please try again or contact support.`;
+  }
+}
+
+// ─── Screen ───────────────────────────────────────────────────────────────────
 const ForgotPasswordScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
   const [emailError, setEmailError] = useState('');
+  const [bannerError, setBannerError] = useState('');
 
   const validate = () => {
-    if (!email.trim() || !/\S+@\S+\.\S+/.test(email)) {
-      setEmailError(t('auth.error_invalid_email'));
+    console.log('[ForgotPassword] Validating email:', email);
+    if (!email.trim()) {
+      setEmailError('Please enter your email address.');
+      setBannerError('Please enter your email address before continuing.');
+      console.log('[ForgotPassword] Validation failed — email is empty');
+      return false;
+    }
+    if (!/\S+@\S+\.\S+/.test(email)) {
+      setEmailError('Please enter a valid email address.');
+      setBannerError('The email address you entered is not valid.');
+      console.log('[ForgotPassword] Validation failed — invalid email format');
       return false;
     }
     setEmailError('');
+    setBannerError('');
+    console.log('[ForgotPassword] Validation passed');
     return true;
   };
 
   const handleSend = async () => {
+    console.log('[ForgotPassword] Send Reset Link button pressed');
+    setBannerError('');
+
     if (!validate()) return;
+
+    console.log('[ForgotPassword] Sending password reset email to:', email.trim());
     setLoading(true);
     try {
       await resetPassword(email.trim());
+      console.log('[ForgotPassword] Password reset email sent SUCCESS');
       setSent(true);
     } catch (err) {
-      const code = err?.code || '';
-      let message = t('auth.error_generic');
-      if (code === 'auth/user-not-found') message = t('auth.error_reset_no_user');
-      else if (code === 'auth/invalid-email') message = t('auth.error_invalid_email');
-      else if (code === 'auth/network-request-failed') message = t('auth.error_network');
-      Alert.alert(t('auth.reset_error_title'), message);
+      const msg = mapResetError(err?.code);
+      console.error('[ForgotPassword] Reset email FAILED — code:', err?.code, 'message:', err?.message);
+      setBannerError(msg);
     } finally {
       setLoading(false);
     }
@@ -63,27 +149,43 @@ const ForgotPasswordScreen = ({ navigation }) => {
 
           <View style={styles.form}>
             {sent ? (
+              // ── Success state ──────────────────────────────────────────────
               <View style={styles.successBox}>
                 <Text style={styles.successIcon}>✉️</Text>
-                <Text style={styles.successTitle}>{t('auth.reset_sent_title')}</Text>
-                <Text style={styles.successMessage}>{t('auth.reset_sent_message')}</Text>
+                <Text style={styles.successTitle}>Email Sent!</Text>
+                <Text style={styles.successMessage}>
+                  Password reset instructions have been sent to:
+                </Text>
+                <Text style={styles.successEmail}>{email}</Text>
+                <Text style={styles.successNote}>
+                  Check your inbox (and spam folder) for the reset link. It may take a minute to arrive.
+                </Text>
                 <Button
-                  title={t('auth.back_to_sign_in')}
+                  title="Back to Sign In"
                   onPress={() => navigation.navigate('SignIn')}
+                  size="lg"
                   style={styles.btn}
                 />
               </View>
             ) : (
+              // ── Form state ─────────────────────────────────────────────────
               <>
                 <Text style={styles.formTitle}>{t('auth.forgot_password_title')}</Text>
                 <Text style={styles.subtitle}>{t('auth.forgot_password_subtitle')}</Text>
+
+                <ConfigWarning />
+                <ErrorBanner message={bannerError} />
 
                 <View style={styles.field}>
                   <Text style={styles.fieldLabel}>{t('auth.email')}</Text>
                   <TextInput
                     style={[styles.input, emailError && styles.inputError]}
                     value={email}
-                    onChangeText={(v) => { setEmail(v); setEmailError(''); }}
+                    onChangeText={(v) => {
+                      setEmail(v);
+                      setEmailError('');
+                      setBannerError('');
+                    }}
                     placeholder="you@email.com"
                     placeholderTextColor={COLORS.textLight}
                     keyboardType="email-address"
@@ -94,7 +196,7 @@ const ForgotPasswordScreen = ({ navigation }) => {
                 </View>
 
                 <Button
-                  title={t('auth.send_reset_link')}
+                  title={loading ? 'Sending…' : t('auth.send_reset_link')}
                   onPress={handleSend}
                   loading={loading}
                   size="lg"
@@ -120,7 +222,6 @@ const styles = StyleSheet.create({
 
   backBtn: { alignSelf: 'flex-start', marginBottom: SPACING.md },
   back: { fontSize: FONTS.xl, color: COLORS.primary, padding: SPACING.sm },
-
   logoContainer: { alignItems: 'center', marginBottom: SPACING.xl },
 
   form: {
@@ -133,7 +234,7 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: FONTS.md, color: COLORS.textSecondary,
-    marginBottom: SPACING.xl, lineHeight: 26,
+    marginBottom: SPACING.lg, lineHeight: 26,
   },
 
   field: { marginBottom: SPACING.lg },
@@ -147,14 +248,14 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background, minHeight: 56,
   },
   inputError: { borderColor: COLORS.high },
-  errorText: { fontSize: FONTS.sm, color: COLORS.high, marginTop: SPACING.xs },
+  errorText: { fontSize: FONTS.sm, color: COLORS.high, marginTop: SPACING.xs, fontWeight: FONTS.medium },
 
   btn: { marginBottom: SPACING.md },
-
   linkRow: { alignItems: 'center', paddingVertical: SPACING.sm },
   linkText: { fontSize: FONTS.sm, color: COLORS.primary, fontWeight: FONTS.semiBold },
 
-  successBox: { alignItems: 'center', paddingVertical: SPACING.lg },
+  // Success state
+  successBox: { alignItems: 'center', paddingVertical: SPACING.sm },
   successIcon: { fontSize: 56, marginBottom: SPACING.lg },
   successTitle: {
     fontSize: FONTS.xl, fontWeight: FONTS.bold,
@@ -162,7 +263,15 @@ const styles = StyleSheet.create({
   },
   successMessage: {
     fontSize: FONTS.md, color: COLORS.textSecondary,
-    textAlign: 'center', lineHeight: 26, marginBottom: SPACING.xl,
+    textAlign: 'center', marginBottom: SPACING.xs,
+  },
+  successEmail: {
+    fontSize: FONTS.md, fontWeight: FONTS.bold,
+    color: COLORS.primary, textAlign: 'center', marginBottom: SPACING.md,
+  },
+  successNote: {
+    fontSize: FONTS.sm, color: COLORS.textSecondary,
+    textAlign: 'center', lineHeight: 22, marginBottom: SPACING.xl,
   },
 });
 

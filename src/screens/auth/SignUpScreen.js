@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, StyleSheet, ScrollView,
-  TouchableOpacity, KeyboardAvoidingView, Platform, Alert,
+  TouchableOpacity, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -12,34 +12,91 @@ import LanguageToggle from '../../components/common/LanguageToggle';
 import ViLogo from '../../components/common/ViLogo';
 import { signUp } from '../../services/firebase/auth';
 
+// ─── Config check ─────────────────────────────────────────────────────────────
+const FIREBASE_CONFIGURED =
+  !!process.env.EXPO_PUBLIC_FIREBASE_API_KEY &&
+  !process.env.EXPO_PUBLIC_FIREBASE_API_KEY.startsWith('YOUR_');
+
+// ─── Shared banners ───────────────────────────────────────────────────────────
+const ErrorBanner = ({ message }) => {
+  if (!message) return null;
+  return (
+    <View style={bannerStyles.error}>
+      <Text style={bannerStyles.errorText}>⚠️  {message}</Text>
+    </View>
+  );
+};
+
+const ConfigWarning = () => {
+  if (FIREBASE_CONFIGURED) return null;
+  return (
+    <View style={bannerStyles.warning}>
+      <Text style={bannerStyles.warningText}>
+        🔧  Firebase is not configured. Set EXPO_PUBLIC_FIREBASE_* environment variables to enable account creation.
+      </Text>
+    </View>
+  );
+};
+
+const bannerStyles = StyleSheet.create({
+  error: {
+    backgroundColor: '#FDECEA',
+    borderWidth: 1,
+    borderColor: COLORS.high,
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
+    marginBottom: SPACING.md,
+  },
+  errorText: {
+    color: COLORS.high,
+    fontSize: FONTS.sm,
+    fontWeight: FONTS.semiBold,
+    lineHeight: 22,
+  },
+  warning: {
+    backgroundColor: '#FEF9E7',
+    borderWidth: 1,
+    borderColor: '#F39C12',
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
+    marginBottom: SPACING.lg,
+  },
+  warningText: {
+    color: '#856404',
+    fontSize: FONTS.sm,
+    lineHeight: 22,
+  },
+});
+
+// ─── Password strength ────────────────────────────────────────────────────────
 const checkPasswordRules = (pw) => ({
-  length:  pw.length >= 8,
-  upper:   /[A-Z]/.test(pw),
-  lower:   /[a-z]/.test(pw),
-  number:  /[0-9]/.test(pw),
+  length: pw.length >= 8,
+  upper:  /[A-Z]/.test(pw),
+  lower:  /[a-z]/.test(pw),
+  number: /[0-9]/.test(pw),
 });
 
 const PasswordRequirements = ({ password, show }) => {
   if (!show) return null;
   const rules = checkPasswordRules(password);
-
-  const Req = ({ met, label }) => (
-    <View style={reqStyles.row}>
-      <Text style={[reqStyles.icon, met ? reqStyles.met : reqStyles.unmet]}>
-        {met ? '✓' : '✗'}
-      </Text>
-      <Text style={[reqStyles.label, met ? reqStyles.metLabel : reqStyles.unmetLabel]}>
-        {label}
-      </Text>
-    </View>
-  );
-
+  const items = [
+    { key: 'length', label: t('auth.password_req_length'), met: rules.length },
+    { key: 'upper',  label: t('auth.password_req_upper'),  met: rules.upper },
+    { key: 'lower',  label: t('auth.password_req_lower'),  met: rules.lower },
+    { key: 'number', label: t('auth.password_req_number'), met: rules.number },
+  ];
   return (
     <View style={reqStyles.container}>
-      <Req met={rules.length} label={t('auth.password_req_length')} />
-      <Req met={rules.upper}  label={t('auth.password_req_upper')} />
-      <Req met={rules.lower}  label={t('auth.password_req_lower')} />
-      <Req met={rules.number} label={t('auth.password_req_number')} />
+      {items.map(({ key, label, met }) => (
+        <View key={key} style={reqStyles.row}>
+          <Text style={[reqStyles.icon, met ? reqStyles.met : reqStyles.unmet]}>
+            {met ? '✓' : '✗'}
+          </Text>
+          <Text style={[reqStyles.label, met ? reqStyles.metLabel : reqStyles.unmetLabel]}>
+            {label}
+          </Text>
+        </View>
+      ))}
     </View>
   );
 };
@@ -47,10 +104,10 @@ const PasswordRequirements = ({ password, show }) => {
 const reqStyles = StyleSheet.create({
   container: {
     backgroundColor: COLORS.background, borderRadius: RADIUS.sm,
-    padding: SPACING.sm, marginTop: SPACING.xs, gap: 4,
+    padding: SPACING.sm, marginTop: SPACING.xs,
   },
-  row: { flexDirection: 'row', alignItems: 'center', gap: SPACING.xs },
-  icon: { fontSize: FONTS.sm, width: 18, textAlign: 'center' },
+  row: { flexDirection: 'row', alignItems: 'center', marginBottom: 2 },
+  icon: { fontSize: FONTS.sm, width: 20, textAlign: 'center' },
   label: { fontSize: FONTS.sm },
   met:       { color: COLORS.normal },
   unmet:     { color: COLORS.high },
@@ -58,7 +115,11 @@ const reqStyles = StyleSheet.create({
   unmetLabel: { color: COLORS.textSecondary },
 });
 
-const Field = ({ label, value, onChange, placeholder, secureTextEntry, keyboardType, error, children }) => (
+// ─── Field ────────────────────────────────────────────────────────────────────
+const Field = ({
+  label, value, onChange, placeholder,
+  secureTextEntry, keyboardType, error, children,
+}) => (
   <View style={styles.field}>
     <Text style={styles.fieldLabel}>{label}</Text>
     <TextInput
@@ -69,7 +130,7 @@ const Field = ({ label, value, onChange, placeholder, secureTextEntry, keyboardT
       placeholderTextColor={COLORS.textLight}
       secureTextEntry={secureTextEntry}
       keyboardType={keyboardType}
-      autoCapitalize={keyboardType === 'email-address' ? 'none' : 'words'}
+      autoCapitalize={keyboardType === 'email-address' ? 'none' : 'none'}
       autoCorrect={false}
     />
     {error ? <Text style={styles.errorText}>{error}</Text> : null}
@@ -77,6 +138,27 @@ const Field = ({ label, value, onChange, placeholder, secureTextEntry, keyboardT
   </View>
 );
 
+// ─── Firebase error mapping ───────────────────────────────────────────────────
+function mapSignUpError(code) {
+  switch (code) {
+    case 'auth/email-already-in-use':
+      return 'An account with this email address already exists. Please sign in instead.';
+    case 'auth/invalid-email':
+      return 'The email address is not valid. Please enter a correct email.';
+    case 'auth/weak-password':
+      return 'Password is too weak. Please choose a stronger password.';
+    case 'auth/network-request-failed':
+      return 'No internet connection. Please check your network and try again.';
+    case 'auth/operation-not-allowed':
+      return 'Email sign-up is not enabled. Please contact support.';
+    case 'auth/invalid-api-key':
+      return 'Firebase is not configured correctly. Check your environment variables.';
+    default:
+      return `Account creation failed. (${code || 'unknown error'}) Please try again or contact support.`;
+  }
+}
+
+// ─── Screen ───────────────────────────────────────────────────────────────────
 const SignUpScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const [name, setName] = useState('');
@@ -84,39 +166,70 @@ const SignUpScreen = ({ navigation }) => {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [errors, setErrors] = useState({});
+  const [fieldErrors, setFieldErrors] = useState({});
+  const [bannerError, setBannerError] = useState('');
   const [passwordTouched, setPasswordTouched] = useState(false);
 
-  const allRulesMet = (pw) => {
+  const clearFieldError = (field) =>
+    setFieldErrors((prev) => ({ ...prev, [field]: '' }));
+
+  const allPasswordRulesMet = (pw) => {
     const r = checkPasswordRules(pw);
     return r.length && r.upper && r.lower && r.number;
   };
 
   const validate = () => {
+    console.log('[SignUp] Validating inputs');
     const errs = {};
-    if (!name.trim()) errs.name = t('auth.error_name_required');
-    if (!email.trim() || !/\S+@\S+\.\S+/.test(email)) errs.email = t('auth.error_invalid_email');
-    if (!allRulesMet(password)) errs.password = t('auth.error_weak_password_strong');
-    if (password !== confirmPassword) errs.confirmPassword = t('auth.error_passwords_dont_match');
-    setErrors(errs);
-    return Object.keys(errs).length === 0;
+    if (!name.trim()) errs.name = 'Please enter your full name.';
+    if (!email.trim()) {
+      errs.email = 'Please enter your email address.';
+    } else if (!/\S+@\S+\.\S+/.test(email)) {
+      errs.email = 'Please enter a valid email address.';
+    }
+    if (!password) {
+      errs.password = 'Please enter a password.';
+    } else if (!allPasswordRulesMet(password)) {
+      errs.password = 'Password does not meet the requirements shown below.';
+    }
+    if (!confirmPassword) {
+      errs.confirmPassword = 'Please confirm your password.';
+    } else if (password !== confirmPassword) {
+      errs.confirmPassword = 'Passwords do not match. Please check and try again.';
+    }
+    setFieldErrors(errs);
+    const errorCount = Object.keys(errs).length;
+    if (errorCount > 0) {
+      console.log('[SignUp] Validation failed —', errorCount, 'error(s):', errs);
+      setBannerError(
+        errorCount === 1
+          ? 'Please fix the error below before continuing.'
+          : `Please fix ${errorCount} errors below before continuing.`
+      );
+      return false;
+    }
+    console.log('[SignUp] Validation passed');
+    return true;
   };
 
   const handleSignUp = async () => {
+    console.log('[SignUp] Create Account button pressed');
+    setBannerError('');
+    setPasswordTouched(true);
+
     if (!validate()) return;
+
+    console.log('[SignUp] Sending account creation request to Firebase');
     setLoading(true);
     try {
-      await signUp(email.trim(), password, name.trim());
+      const user = await signUp(email.trim(), password, name.trim());
+      console.log('[SignUp] Firebase createUser SUCCESS — uid:', user?.uid);
+      console.log('[SignUp] Verification email will be sent to:', email.trim());
       navigation.replace('SignUpSuccess', { email: email.trim() });
     } catch (err) {
-      const code = err?.code || '';
-      let message = t('auth.error_generic');
-      if (code === 'auth/email-already-in-use') message = t('auth.error_email_in_use');
-      else if (code === 'auth/invalid-email') message = t('auth.error_invalid_email');
-      else if (code === 'auth/weak-password') message = t('auth.error_weak_password_strong');
-      else if (code === 'auth/network-request-failed') message = t('auth.error_network');
-      else if (code === 'auth/operation-not-allowed') message = t('auth.error_operation_not_allowed');
-      Alert.alert(t('auth.signup_error_title'), message);
+      const msg = mapSignUpError(err?.code);
+      console.error('[SignUp] Firebase createUser FAILED — code:', err?.code, 'message:', err?.message);
+      setBannerError(msg);
     } finally {
       setLoading(false);
     }
@@ -145,30 +258,38 @@ const SignUpScreen = ({ navigation }) => {
           <View style={styles.form}>
             <Text style={styles.formTitle}>{t('auth.sign_up')}</Text>
 
+            <ConfigWarning />
+            <ErrorBanner message={bannerError} />
+
             <Field
-              label={t('profile.name')}
+              label="Full Name"
               value={name}
-              onChange={setName}
+              onChange={(v) => { setName(v); clearFieldError('name'); setBannerError(''); }}
               placeholder="María García"
-              error={errors.name}
+              error={fieldErrors.name}
             />
 
             <Field
               label={t('auth.email')}
               value={email}
-              onChange={setEmail}
+              onChange={(v) => { setEmail(v); clearFieldError('email'); setBannerError(''); }}
               placeholder="you@email.com"
               keyboardType="email-address"
-              error={errors.email}
+              error={fieldErrors.email}
             />
 
             <Field
               label={t('auth.password')}
               value={password}
-              onChange={(v) => { setPassword(v); setPasswordTouched(true); }}
+              onChange={(v) => {
+                setPassword(v);
+                setPasswordTouched(true);
+                clearFieldError('password');
+                setBannerError('');
+              }}
               placeholder="••••••••"
               secureTextEntry
-              error={errors.password}
+              error={fieldErrors.password}
             >
               <PasswordRequirements password={password} show={passwordTouched} />
             </Field>
@@ -176,14 +297,14 @@ const SignUpScreen = ({ navigation }) => {
             <Field
               label={t('auth.confirm_password')}
               value={confirmPassword}
-              onChange={setConfirmPassword}
+              onChange={(v) => { setConfirmPassword(v); clearFieldError('confirmPassword'); setBannerError(''); }}
               placeholder="••••••••"
               secureTextEntry
-              error={errors.confirmPassword}
+              error={fieldErrors.confirmPassword}
             />
 
             <Button
-              title={t('auth.create_account')}
+              title={loading ? 'Creating account…' : t('auth.create_account')}
               onPress={handleSignUp}
               loading={loading}
               size="lg"
@@ -231,7 +352,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background, minHeight: 56,
   },
   inputError: { borderColor: COLORS.high },
-  errorText: { fontSize: FONTS.sm, color: COLORS.high, marginTop: SPACING.xs },
+  errorText: { fontSize: FONTS.sm, color: COLORS.high, marginTop: SPACING.xs, fontWeight: FONTS.medium },
   btn: { marginTop: SPACING.sm, marginBottom: SPACING.lg },
   switchRow: { flexDirection: 'row', justifyContent: 'center' },
   switchText: { fontSize: FONTS.sm, color: COLORS.textSecondary },
