@@ -224,8 +224,8 @@ const SignUpScreen = ({ navigation }) => {
     try {
       const user = await signUp(email.trim(), password, name.trim());
       console.log('[SignUp] Firebase createUser SUCCESS — uid:', user?.uid);
-      console.log('[SignUp] Verification email will be sent to:', email.trim());
-      navigation.replace('SignUpSuccess', { email: email.trim() });
+      console.log('[SignUp] Verification email sent to:', email.trim());
+      // onAuthStateChanged fires here → AppNavigator routes to EmailVerificationScreen
     } catch (err) {
       const msg = mapSignUpError(err?.code);
       console.error('[SignUp] Firebase createUser FAILED — code:', err?.code, 'message:', err?.message);

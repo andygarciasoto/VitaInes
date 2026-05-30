@@ -311,6 +311,15 @@ export default {
     signup_success_note: 'Please check your inbox and follow the link to verify your email address.',
     go_to_sign_in: 'Go to Sign In',
     signup_auto_redirect: 'You\'ll be redirected to sign in automatically in a few seconds.',
+
+    // Email verification gate
+    email_verification_title: 'Verify Your Email',
+    email_verification_subtitle: 'We sent a verification link to:',
+    email_verification_note: 'Click the link in your email to verify your account. Check your spam folder if you don\'t see it.',
+    email_verification_check: 'I\'ve Verified My Email',
+    email_verification_resend: 'Resend Verification Email',
+    email_verification_resent: 'Verification email sent! Check your inbox.',
+    email_verification_not_yet: 'Your email hasn\'t been verified yet. Please check your inbox and click the verification link.',
   },
 
   // Common

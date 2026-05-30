@@ -311,6 +311,15 @@ export default {
     signup_success_note: 'Por favor revisa tu bandeja de entrada y sigue el enlace para verificar tu correo.',
     go_to_sign_in: 'Ir a Iniciar Sesión',
     signup_auto_redirect: 'Serás redirigido a iniciar sesión automáticamente en unos segundos.',
+
+    // Verificación de correo
+    email_verification_title: 'Verifica tu Correo',
+    email_verification_subtitle: 'Enviamos un enlace de verificación a:',
+    email_verification_note: 'Haz clic en el enlace de tu correo para verificar tu cuenta. Revisa la carpeta de spam si no lo encuentras.',
+    email_verification_check: 'Ya Verifiqué mi Correo',
+    email_verification_resend: 'Reenviar Correo de Verificación',
+    email_verification_resent: '¡Correo enviado! Revisa tu bandeja de entrada.',
+    email_verification_not_yet: 'Tu correo aún no ha sido verificado. Revisa tu bandeja de entrada y haz clic en el enlace.',
   },
 
   // Common

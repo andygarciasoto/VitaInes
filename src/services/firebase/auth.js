@@ -60,6 +60,17 @@ export const getUserProfile = async (uid) => {
   return null;
 };
 
+export const reloadUser = async () => {
+  if (!auth.currentUser) throw new Error('No authenticated user');
+  await auth.currentUser.reload();
+  return auth.currentUser;
+};
+
+export const resendVerificationEmail = async () => {
+  if (!auth.currentUser) throw new Error('No authenticated user');
+  await sendEmailVerification(auth.currentUser);
+};
+
 export const subscribeToAuthState = (callback) => {
   return onAuthStateChanged(auth, callback);
 };

@@ -12,6 +12,7 @@ import SignInScreen from '../screens/auth/SignInScreen';
 import SignUpScreen from '../screens/auth/SignUpScreen';
 import SignUpSuccessScreen from '../screens/auth/SignUpSuccessScreen';
 import ForgotPasswordScreen from '../screens/auth/ForgotPasswordScreen';
+import EmailVerificationScreen from '../screens/auth/EmailVerificationScreen';
 import OnboardingScreen from '../screens/onboarding/OnboardingScreen';
 import HomeScreen from '../screens/home/HomeScreen';
 import HistoryScreen from '../screens/history/HistoryScreen';
@@ -99,6 +100,8 @@ const AppNavigator = () => {
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {!user ? (
           <Stack.Screen name="Auth" component={AuthStack} />
+        ) : !user.emailVerified ? (
+          <Stack.Screen name="EmailVerification" component={EmailVerificationScreen} />
         ) : !userProfile?.onboardingComplete ? (
           <Stack.Screen name="Onboarding" component={OnboardingScreen} />
         ) : (

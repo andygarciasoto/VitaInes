@@ -80,6 +80,8 @@ const reducer = (state, action) => {
       return { ...state, error: action.payload };
     case 'CLEAR_ERROR':
       return { ...state, error: null };
+    case 'REFRESH_USER':
+      return { ...state, user: action.payload };
     case 'SIGN_OUT':
       return { ...initialState, authLoading: false };
     default:
