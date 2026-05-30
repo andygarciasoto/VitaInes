@@ -31,10 +31,14 @@ export const signUp = async (email, password, displayName) => {
     emergencyContact: '',
   }).catch((err) => console.warn('[auth] Firestore profile create failed:', err));
 
-  // Send verification email — fire-and-forget so it can't block account creation
-  sendEmailVerification(credential.user).catch((err) =>
-    console.warn('[auth] sendEmailVerification failed:', err)
-  );
+  // Send verification email — awaited so callers can detect failure
+  try {
+    await sendEmailVerification(credential.user);
+    console.log('[auth] Verification email sent to:', email);
+  } catch (err) {
+    console.warn('[auth] sendEmailVerification failed — code:', err?.code, err?.message);
+    // Don't re-throw; account created, user can resend from EmailVerificationScreen
+  }
 
   return credential.user;
 };
