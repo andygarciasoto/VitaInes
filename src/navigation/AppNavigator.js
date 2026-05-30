@@ -10,6 +10,8 @@ import ViLogo from '../components/common/ViLogo';
 
 import SignInScreen from '../screens/auth/SignInScreen';
 import SignUpScreen from '../screens/auth/SignUpScreen';
+import SignUpSuccessScreen from '../screens/auth/SignUpSuccessScreen';
+import ForgotPasswordScreen from '../screens/auth/ForgotPasswordScreen';
 import OnboardingScreen from '../screens/onboarding/OnboardingScreen';
 import HomeScreen from '../screens/home/HomeScreen';
 import HistoryScreen from '../screens/history/HistoryScreen';
@@ -72,8 +74,10 @@ const MainTabs = ({ language }) => (
 
 const AuthStack = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
-    <Stack.Screen name="SignIn" component={SignInScreen} />
-    <Stack.Screen name="SignUp" component={SignUpScreen} />
+    <Stack.Screen name="SignIn"         component={SignInScreen} />
+    <Stack.Screen name="SignUp"         component={SignUpScreen} />
+    <Stack.Screen name="SignUpSuccess"  component={SignUpSuccessScreen} />
+    <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
   </Stack.Navigator>
 );
 

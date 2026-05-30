@@ -281,6 +281,33 @@ export default {
     error_operation_not_allowed: 'Email sign-in is not enabled. Please contact support.',
     error_google_failed: 'Google sign-in failed. Please try again.',
     error_google_not_configured: 'Google Sign-In is not yet configured for this build. Please use email/password sign-in.',
+    error_name_required: 'Please enter your name.',
+    error_weak_password_strong: 'Password must be at least 8 characters and include uppercase, lowercase, and a number.',
+    error_reset_no_user: 'No account found with this email address.',
+    signup_error_title: 'Sign Up Error',
+
+    // Password strength requirements
+    password_req_length: 'At least 8 characters',
+    password_req_upper: 'One uppercase letter (A–Z)',
+    password_req_lower: 'One lowercase letter (a–z)',
+    password_req_number: 'One number (0–9)',
+
+    // Forgot password
+    forgot_password_title: 'Reset Password',
+    forgot_password_subtitle: 'Enter your email and we\'ll send you a reset link.',
+    send_reset_link: 'Send Reset Link',
+    reset_sent_title: 'Email Sent!',
+    reset_sent_message: 'Check your inbox for the password reset link. It may take a minute to arrive.',
+    reset_error_title: 'Reset Failed',
+    back_to_sign_in: 'Back to Sign In',
+
+    // Sign up success
+    signup_success_title: 'Account Created!',
+    signup_success_subtitle: 'Welcome to VitaInes',
+    signup_success_email_label: 'A confirmation email has been sent to:',
+    signup_success_note: 'Please check your inbox and follow the link to verify your email address.',
+    go_to_sign_in: 'Go to Sign In',
+    signup_auto_redirect: 'You\'ll be redirected to sign in automatically in a few seconds.',
   },
 
   // Common

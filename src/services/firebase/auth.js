@@ -3,6 +3,7 @@ import {
   signInWithEmailAndPassword,
   signOut as firebaseSignOut,
   sendPasswordResetEmail,
+  sendEmailVerification,
   updateProfile,
   onAuthStateChanged,
 } from 'firebase/auth';
@@ -29,6 +30,11 @@ export const signUp = async (email, password, displayName) => {
     doctorPhone: '',
     emergencyContact: '',
   }).catch((err) => console.warn('[auth] Firestore profile create failed:', err));
+
+  // Send verification email — fire-and-forget so it can't block account creation
+  sendEmailVerification(credential.user).catch((err) =>
+    console.warn('[auth] sendEmailVerification failed:', err)
+  );
 
   return credential.user;
 };

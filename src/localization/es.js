@@ -281,6 +281,33 @@ export default {
     error_operation_not_allowed: 'El inicio de sesión por correo no está habilitado. Contacta al soporte.',
     error_google_failed: 'El inicio de sesión con Google falló. Por favor intenta de nuevo.',
     error_google_not_configured: 'Google Sign-In no está configurado para esta versión. Por favor usa correo y contraseña.',
+    error_name_required: 'Por favor ingresa tu nombre.',
+    error_weak_password_strong: 'La contraseña debe tener al menos 8 caracteres, incluyendo mayúsculas, minúsculas y un número.',
+    error_reset_no_user: 'No se encontró ninguna cuenta con este correo electrónico.',
+    signup_error_title: 'Error al Crear Cuenta',
+
+    // Requisitos de contraseña
+    password_req_length: 'Al menos 8 caracteres',
+    password_req_upper: 'Una letra mayúscula (A–Z)',
+    password_req_lower: 'Una letra minúscula (a–z)',
+    password_req_number: 'Un número (0–9)',
+
+    // Olvidé mi contraseña
+    forgot_password_title: 'Restablecer Contraseña',
+    forgot_password_subtitle: 'Ingresa tu correo y te enviaremos un enlace para restablecer tu contraseña.',
+    send_reset_link: 'Enviar Enlace',
+    reset_sent_title: '¡Correo Enviado!',
+    reset_sent_message: 'Revisa tu bandeja de entrada para el enlace de restablecimiento. Puede tardar un minuto en llegar.',
+    reset_error_title: 'Error al Restablecer',
+    back_to_sign_in: 'Volver a Iniciar Sesión',
+
+    // Registro exitoso
+    signup_success_title: '¡Cuenta Creada!',
+    signup_success_subtitle: 'Bienvenido a VitaInes',
+    signup_success_email_label: 'Se ha enviado un correo de confirmación a:',
+    signup_success_note: 'Por favor revisa tu bandeja de entrada y sigue el enlace para verificar tu correo.',
+    go_to_sign_in: 'Ir a Iniciar Sesión',
+    signup_auto_redirect: 'Serás redirigido a iniciar sesión automáticamente en unos segundos.',
   },
 
   // Common
