@@ -21,7 +21,8 @@
       "usesAppleSignIn": true,
       "infoPlist": {
         "NSHealthShareUsageDescription": "VitaInes needs access to health data to track your blood pressure readings.",
-        "NSHealthUpdateUsageDescription": "VitaInes needs to write health data to track your blood pressure readings."
+        "NSHealthUpdateUsageDescription": "VitaInes needs to write health data to track your blood pressure readings.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {

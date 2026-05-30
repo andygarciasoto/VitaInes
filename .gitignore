@@ -31,3 +31,5 @@ expo-debug.*
 
 # Local
 *.local
+".env" 
+".env" 
