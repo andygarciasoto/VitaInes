@@ -47,7 +47,8 @@
           "color": "#4CAF93",
           "sounds": []
         }
-      ]
+      ],
+      "react-native-reanimated"
     ],
     "extra": {
       "eas": {
