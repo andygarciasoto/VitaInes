@@ -174,17 +174,7 @@ const NativeGoogleButton = ({ onError }) => {
     clientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
   });
 
-  // Log the exact redirect_uri so it can be added to Google Cloud Console
-  useEffect(() => {
-    if (request?.url) {
-      try {
-        const redirectUri = new URL(request.url).searchParams.get('redirect_uri');
-        console.log('[SignIn] Google redirect_uri (add this to Cloud Console):', redirectUri);
-      } catch {}
-    }
-  }, [request]);
-
-  useEffect(() => {
+useEffect(() => {
     if (!response) return;
     if (response.type === 'success') {
       const { id_token } = response.params;
