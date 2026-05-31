@@ -239,8 +239,6 @@ const SignInScreen = ({ navigation }) => {
   const [fieldErrors, setFieldErrors] = useState({});
   const [bannerError, setBannerError] = useState('');
 
-  const showSocialSection = Platform.OS !== 'web';
-
   const validate = () => {
     console.log('[SignIn] Validating inputs — email:', email, 'password length:', password.length);
     const errs = {};
@@ -308,17 +306,15 @@ const SignInScreen = ({ navigation }) => {
             <ConfigWarning />
             <ErrorBanner message={bannerError} />
 
-            {showSocialSection && (
-              <>
-                {Platform.OS === 'ios' && <NativeAppleButton onError={setBannerError} />}
-                <NativeGoogleButton onError={setBannerError} />
-                <View style={styles.dividerRow}>
-                  <View style={styles.dividerLine} />
-                  <Text style={styles.dividerText}>{t('auth.or')}</Text>
-                  <View style={styles.dividerLine} />
-                </View>
-              </>
-            )}
+            {/* Apple first (iOS native only — self-hides when unavailable) */}
+            {Platform.OS === 'ios' && <NativeAppleButton onError={setBannerError} />}
+            {/* Google available on web, iOS, and Android via expo-auth-session */}
+            <NativeGoogleButton onError={setBannerError} />
+            <View style={styles.dividerRow}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>{t('auth.or')}</Text>
+              <View style={styles.dividerLine} />
+            </View>
 
             <View style={styles.field}>
               <Text style={styles.fieldLabel}>{t('auth.email')}</Text>
