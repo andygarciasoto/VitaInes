@@ -166,10 +166,12 @@ const NativeAppleButton = ({ onError }) => {
 };
 
 // ─── Google Sign-In ───────────────────────────────────────────────────────────
-const NativeGoogleButton = ({ onError }) => {
+// Split into parent + child so the hook is never called without a valid clientId.
+// On iOS, useIdTokenAuthRequest throws an invariant if iosClientId is undefined.
+const GoogleButtonInner = ({ iosClientId, onError }) => {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
-    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+    iosClientId,
     androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
     clientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
   });
@@ -228,6 +230,12 @@ useEffect(() => {
       )}
     </TouchableOpacity>
   );
+};
+
+const NativeGoogleButton = ({ onError }) => {
+  const iosClientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
+  if (Platform.OS === 'ios' && !iosClientId) return null;
+  return <GoogleButtonInner iosClientId={iosClientId} onError={onError} />;
 };
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
