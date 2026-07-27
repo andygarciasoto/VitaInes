@@ -19,7 +19,7 @@ const FEATURES = [
 
 const OnboardingScreen = () => {
   const insets = useSafeAreaInsets();
-  const { state } = useApp();
+  const { state, dispatch } = useApp();
   const [loading, setLoading] = useState(false);
 
   const handleGetStarted = async () => {
@@ -27,8 +27,11 @@ const OnboardingScreen = () => {
     setLoading(true);
     try {
       await completeOnboarding(state.user.uid);
+      // Update local state so AppNavigator immediately routes to Main
+      dispatch({ type: 'SET_USER_PROFILE', payload: { ...state.userProfile, onboardingComplete: true } });
       requestNotificationPermissions().catch(() => {});
-    } catch {
+    } catch (err) {
+      console.error('[Onboarding] completeOnboarding failed:', err?.code, err?.message);
       Alert.alert('Error', t('common.error'));
     } finally {
       setLoading(false);

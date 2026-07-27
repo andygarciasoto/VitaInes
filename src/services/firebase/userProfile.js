@@ -1,4 +1,4 @@
-import { doc, updateDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, updateDoc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from './config';
 
 const USERS_COLLECTION = 'users';
@@ -19,11 +19,11 @@ export const getUserProfile = async (userId) => {
 };
 
 export const completeOnboarding = async (userId, onboardingData = {}) => {
-  await updateDoc(doc(db, USERS_COLLECTION, userId), {
+  await setDoc(doc(db, USERS_COLLECTION, userId), {
     onboardingComplete: true,
     ...onboardingData,
     updatedAt: serverTimestamp(),
-  });
+  }, { merge: true });
 };
 
 export const updateLanguage = async (userId, language) => {

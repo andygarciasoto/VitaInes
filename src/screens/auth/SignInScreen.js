@@ -176,7 +176,7 @@ const GoogleButtonInner = ({ iosClientId, onError }) => {
     clientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
   });
 
-useEffect(() => {
+  useEffect(() => {
     if (!response) return;
     if (response.type === 'success') {
       const { id_token } = response.params;
