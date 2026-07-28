@@ -32,7 +32,10 @@ const OnboardingScreen = () => {
       requestNotificationPermissions().catch(() => {});
     } catch (err) {
       console.error('[Onboarding] completeOnboarding failed:', err?.code, err?.message);
-      Alert.alert('Error', t('common.error'));
+      Alert.alert(
+        'Could not save progress',
+        `${err?.code || 'unknown'}: ${err?.message || 'Please try again.'}`
+      );
     } finally {
       setLoading(false);
     }
